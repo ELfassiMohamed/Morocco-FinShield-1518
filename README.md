@@ -1,43 +1,48 @@
-# Morocco-FinShield-1518
+# Kantara
 
-**A smart tool to keep Moroccan crowdfunding platforms safe and legal.**
+**Kantara** is a Java-based command line tool that turns business documents into actionable outputs.
 
----
+It reads local files such as **Excel spreadsheets**, **PDF reports**, **Word documents**, and **PowerPoint decks**, extracts structured content, sends only the required payload to a remote AI workflow, and generates polished outputs such as:
 
-###  What is this?
-This project helps Moroccan startups comply with **Law 15-18** (the regulatory framework for crowdfunding). It leverages **Agentic AI** to automatically verify that investors are following legal limits and to detect fraudulent activities, such as money laundering or synthetic identities.
+- `pptx` executive presentations
+- `docx` review documents
+- summaries and action reports
+- searchable structured insights
 
----
+The project is designed as a **local CLI + remote intelligence bridge**:
 
-###  How it works
-The system is built using a "Teamwork" approach between three core technologies:
+- **Local Java CLI** handles file access, extraction, sanitization, and output generation
+- **n8n on Azure** orchestrates the workflow
+- **Azure OpenAI** performs reasoning and synthesis
+- **Azure AI Search** can be added for retrieval across document collections
 
-* ** The Brain (Java / Spring Boot):** Handles the "hard" logic. It calculates investment ceilings, manages secure data persistence, and ensures the overall system architecture remains organized and scalable.
-    
-* ** The Eyes (Azure AI):** Utilizes **Azure AI Document Intelligence** to "read" Moroccan National ID cards (CIN) and legal documents, verifying the identity of every investor with high precision.
+## Why This Project
 
-* ** The Assistant (n8n + AI Agents):** The orchestration layer. If the AI detects something suspicious (e.g., one bank account linked to multiple names), the assistant sends an interactive message to **Telegram**, allowing a human admin to **"Approve"** or **"Block"** the user instantly.
+Many business workflows still depend on manual document work:
 
----
+- reading KPI spreadsheets
+- reviewing PDF reports
+- preparing management presentations
+- drafting Word review notes
+- extracting findings from scattered files
 
-###  Key Features
-* **Law 15-18 Compliance:** Automated enforcement of investment caps for retail vs. professional investors.
-* **KYC Automation:** Instant extraction and validation of data from Moroccan CINs.
-* **Fraud Detection:** AI-driven pattern recognition to spot "Smurfing" or identity theft.
-* **Human-in-the-Loop:** Seamless integration between automated checks and manual Telegram approvals.
+Kantara aims to automate that workflow from the terminal in a controlled and auditable way.
 
----
+Instead of uploading raw files to a generic assistant, the CLI:
 
-###  Tech Stack
-* **Backend:** Java 21 / Spring Boot 3.4
-* **Intelligence:** Azure OpenAI & Cognitive Services
-* **Workflow:** n8n (Agentic Nodes)
-* **Database:** PostgreSQL (with PGVector for legal RAG)
+1. reads files locally
+2. extracts text, tables, and metadata
+3. sanitizes sensitive content when needed
+4. sends structured payloads to a remote AI workflow
+5. generates final Office documents locally
 
----
+## Core Scenario
 
-###  Simple Use Case
-1. **User Action:** A user attempts to invest **200,000 DH** in a Tangier-based project.
-2. **System Check:** **Java** calculates their current portfolio while **Azure AI** verifies their ID.
-3. **Legal Validation:** The **AI Agent** compares the request against **Law 15-18** limits stored in the vector database.
-4. **Outcome:** If it exceeds the limit, **n8n** triggers a notification: *"Transaction blocked: Limit exceeded for User X."*
+One of the main target scenarios is:
+
+> Read an Excel file and a PDF report, extract the useful data, create a PowerPoint presentation based on the findings, and generate a DOCX review document.
+
+Example command:
+
+```bash
+kantara compose --data sales.xlsx --report q1-report.pdf --ppt q1-deck.pptx --review q1-review.docx
