@@ -12,7 +12,7 @@ public class ExtractorDemo {
         // Path to your Excel file (ensure this file exists when running the demo)
         String filePath = "sample-data.xlsx"; 
 
-        ExcelExtractor extractor = new ExcelExtractor();
+        DataExtractor extractor = new DataExtractor();
 
         try {
             System.out.println("Starting extraction from: " + filePath);

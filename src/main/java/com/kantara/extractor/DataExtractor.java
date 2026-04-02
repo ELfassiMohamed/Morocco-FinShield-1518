@@ -1,29 +1,49 @@
 package com.kantara.extractor;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Extracts structured data from an Excel (.xlsx) file.
+ * Extracts structured data from multiple file formats (.xlsx, .csv).
  */
-public class ExcelExtractor {
+public class DataExtractor {
 
     /**
-     * Reads an Excel file and extracts its content as a list of maps.
-     * Each map represents a row, where keys are column headers and values are cell contents.
+     * Reads a file and extracts its content as a list of maps.
+     * Automatically detects file format based on extension.
      *
-     * @param filePath The absolute or relative path to the .xlsx file
+     * @param filePath The absolute or relative path to the file
      * @return A list of rows represented as key-value pairs
      */
     public List<Map<String, String>> extract(String filePath) {
+        if (filePath == null || filePath.isEmpty()) {
+            throw new IllegalArgumentException("File path cannot be null or empty");
+        }
+
+        String lowerPath = filePath.toLowerCase();
+        if (lowerPath.endsWith(".xlsx")) {
+            return extractExcel(filePath);
+        } else if (lowerPath.endsWith(".csv")) {
+            return extractCsv(filePath);
+        } else {
+            throw new UnsupportedOperationException("Unsupported file format: " + filePath);
+        }
+    }
+
+    /**
+     * Logic for extracting data from Excel (.xlsx) files.
+     */
+    private List<Map<String, String>> extractExcel(String filePath) {
         List<Map<String, String>> result = new ArrayList<>();
 
         try (InputStream fis = new FileInputStream(filePath);
@@ -50,7 +70,7 @@ public class ExcelExtractor {
             for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
                 if (row == null) {
-                    continue; // Skip entirely empty rows
+                    continue; 
                 }
 
                 Map<String, String> rowData = new LinkedHashMap<>();
@@ -64,22 +84,65 @@ public class ExcelExtractor {
                         hasData = true;
                     }
                     
-                    // Fallback key if the header is missing/blank
                     String header = headers.get(colIndex);
                     String key = header.isEmpty() ? "Column" + (colIndex + 1) : header;
                     rowData.put(key, cellValue);
                 }
 
-                // Only add the row if it wasn't completely empty
                 if (hasData) {
                     result.add(rowData);
                 }
             }
 
         } catch (IOException e) {
-            // Re-throw as unchecked exception per requirements to include proper exception handling
-            // without needing try-catch in every method, or we could handle it via a custom business exception.
             throw new RuntimeException("Error reading Excel file: " + filePath, e);
+        }
+
+        return result;
+    }
+
+    /**
+     * Logic for extracting data from CSV files.
+     */
+    private List<Map<String, String>> extractCsv(String filePath) {
+        List<Map<String, String>> result = new ArrayList<>();
+
+        CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
+                .setHeader()
+                .setSkipHeaderRecord(true)
+                .setIgnoreHeaderCase(true)
+                .setTrim(true)
+                .build();
+
+        try (Reader reader = new FileReader(filePath, StandardCharsets.UTF_8);
+             CSVParser csvParser = new CSVParser(reader, csvFormat)) {
+
+            Map<String, Integer> headerMap = csvParser.getHeaderMap();
+            if (headerMap == null) {
+                return result;
+            }
+
+            List<String> headers = csvParser.getHeaderNames();
+
+            for (CSVRecord record : csvParser) {
+                Map<String, String> rowData = new LinkedHashMap<>();
+                boolean hasData = false;
+
+                for (String header : headers) {
+                    String value = record.get(header).trim();
+                    if (!value.isEmpty()) {
+                        hasData = true;
+                    }
+                    rowData.put(header, value);
+                }
+
+                if (hasData) {
+                    result.add(rowData);
+                }
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading CSV file: " + filePath, e);
         }
 
         return result;
@@ -100,7 +163,6 @@ public class ExcelExtractor {
                 if (DateUtil.isCellDateFormatted(cell)) {
                     return cell.getDateCellValue().toString();
                 } else {
-                    // Check if the number is essentially an integer
                     double numericValue = cell.getNumericCellValue();
                     long longValue = (long) numericValue;
                     if (numericValue == longValue) {

@@ -1,6 +1,6 @@
 package com.kantara.cli;
 
-import com.kantara.extractor.ExcelExtractor;
+import com.kantara.extractor.DataExtractor;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +14,7 @@ public class Main {
 
 		try {
 			// 2. Instantiate the extractor
-			ExcelExtractor extractor = new ExcelExtractor();
+			DataExtractor extractor = new DataExtractor();
 
 			// 3. Call the extract method
 			System.out.println("Starting extraction from: " + filePath);
