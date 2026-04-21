@@ -3,14 +3,10 @@ package com.kantara.ai;
 import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * Senior-level Data Pipeline component for structuring AI payloads.
- * Aggregates Excel data and cleans PDF sections.
- */
+
 public class PayloadBuilder {
 
     /**
-     * Builds a structured payload for AI processing.
      *
      * @param excelData   List of maps representing tabular data.
      * @param pdfSections List of raw text sections from a PDF.
