@@ -21,6 +21,7 @@
         <lombok.version>1.18.36</lombok.version>
         <slf4j.version>2.0.17</slf4j.version>
         <logback.version>1.5.16</logback.version>
+        <log4j2.version>2.23.1</log4j2.version>
         <commons-csv.version>1.10.0</commons-csv.version>
     </properties>
 
@@ -70,6 +71,11 @@
             <artifactId>logback-classic</artifactId>
             <version>${logback.version}</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-to-slf4j</artifactId>
+            <version>${log4j2.version}</version>
+        </dependency>
 
         <!-- CSV Parsing -->
         <dependency>
@@ -99,4 +105,4 @@
             </plugin>
         </plugins>
     </build>
-</project>
+</project>
