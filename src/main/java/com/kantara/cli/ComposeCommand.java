@@ -4,6 +4,7 @@ import com.kantara.pipeline.KantaraPipeline;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
+import java.io.File;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -37,10 +38,31 @@ public class ComposeCommand implements Callable<Integer> {
         validatePath(reportPath, "--report");
         validatePath(outputPath, "--output");
 
+        dataPath = dataPath.trim();
+        reportPath = reportPath.trim();
+        outputPath = outputPath.trim();
+
+        File excel = new File(dataPath);
+        if (!excel.exists()) {
+            System.err.println("[Kantara] ERROR: Excel file not found: " + dataPath);
+            return 1;
+        }
+
+        File pdf = new File(reportPath);
+        if (!pdf.exists()) {
+            System.err.println("[Kantara] ERROR: PDF file not found: " + reportPath);
+            return 1;
+        }
+
         System.out.println("[Kantara] Starting pipeline...");
-        pipeline.runPipeline(dataPath.trim(), reportPath.trim(), outputPath.trim());
-        System.out.println("[Kantara] Done.");
-        return 0;
+        try {
+            pipeline.runPipeline(dataPath, reportPath, outputPath);
+            System.out.println("[Kantara] Done.");
+            return 0;
+        } catch (Exception e) {
+            System.err.println("[Kantara] ERROR: " + e.getMessage());
+            return 1;
+        }
     }
 
     private void validatePath(String value, String optionName) {
@@ -49,4 +71,3 @@ public class ComposeCommand implements Callable<Integer> {
         }
     }
 }
-
