@@ -5,6 +5,7 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.io.File;
+import java.util.Locale;
 import java.util.concurrent.Callable;
 
 @Command(
@@ -13,14 +14,21 @@ import java.util.concurrent.Callable;
 )
 public class ComposeCommand implements Callable<Integer> {
 
-    @Option(names = "--data", required = true, description = "Path to Excel input file.")
+    @Option(names = "--data", required = true, description = "Path to Excel file containing business data (.xlsx)")
     private String dataPath;
 
-    @Option(names = "--report", required = true, description = "Path to PDF report file.")
+    @Option(names = "--report", required = true, description = "Path to PDF report file (.pdf)")
     private String reportPath;
 
-    @Option(names = "--output", required = true, description = "Path for generated PPT output.")
+    @Option(
+            names = "--output",
+            required = true,
+            description = "Path where the generated PowerPoint (.pptx) will be saved"
+    )
     private String outputPath;
+
+    @Option(names = "--verbose", description = "Enable detailed logs")
+    boolean verbose;
 
     private final KantaraPipeline pipeline;
 
@@ -34,9 +42,18 @@ public class ComposeCommand implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        validatePath(dataPath, "--data");
-        validatePath(reportPath, "--report");
-        validatePath(outputPath, "--output");
+        if (isBlank(dataPath)) {
+            System.err.println("[Kantara] ERROR: --data must not be empty.");
+            return 1;
+        }
+        if (isBlank(reportPath)) {
+            System.err.println("[Kantara] ERROR: --report must not be empty.");
+            return 1;
+        }
+        if (isBlank(outputPath)) {
+            System.err.println("[Kantara] ERROR: --output must not be empty.");
+            return 1;
+        }
 
         dataPath = dataPath.trim();
         reportPath = reportPath.trim();
@@ -47,17 +64,35 @@ public class ComposeCommand implements Callable<Integer> {
             System.err.println("[Kantara] ERROR: Excel file not found: " + dataPath);
             return 1;
         }
+        if (!isExtension(excel.getName(), ".xlsx")) {
+            System.err.println("[Kantara] ERROR: Excel file must have .xlsx extension: " + dataPath);
+            return 1;
+        }
 
         File pdf = new File(reportPath);
         if (!pdf.exists()) {
             System.err.println("[Kantara] ERROR: PDF file not found: " + reportPath);
             return 1;
         }
+        if (!isExtension(pdf.getName(), ".pdf")) {
+            System.err.println("[Kantara] ERROR: PDF file must have .pdf extension: " + reportPath);
+            return 1;
+        }
+
+        File output = new File(outputPath);
+        if (output.exists()) {
+            System.err.println("[Kantara] ERROR: Output file already exists: " + outputPath);
+            return 1;
+        }
 
         System.out.println("[Kantara] Starting pipeline...");
+        pipeline.setVerbose(verbose);
+        long startTimeMs = System.currentTimeMillis();
         try {
             pipeline.runPipeline(dataPath, reportPath, outputPath);
-            System.out.println("[Kantara] Done.");
+            double elapsedSeconds = (System.currentTimeMillis() - startTimeMs) / 1000.0;
+            System.out.println("[Kantara] Presentation generated successfully: " + outputPath);
+            System.out.println("[Kantara] Completed in " + String.format(Locale.ROOT, "%.1f", elapsedSeconds) + " seconds");
             return 0;
         } catch (Exception e) {
             System.err.println("[Kantara] ERROR: " + e.getMessage());
@@ -65,9 +100,11 @@ public class ComposeCommand implements Callable<Integer> {
         }
     }
 
-    private void validatePath(String value, String optionName) {
-        if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(optionName + " must not be empty.");
-        }
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private static boolean isExtension(String fileName, String extension) {
+        return fileName.toLowerCase(Locale.ROOT).endsWith(extension);
     }
 }

@@ -20,6 +20,7 @@ public class KantaraPipeline {
     private final PayloadBuilder payloadBuilder;
     private final AiService aiService;
     private final PptGenerator pptGenerator;
+    private boolean verbose;
 
     public KantaraPipeline() {
         this(new DataExtractor(), new PdfExtractor(), new PayloadBuilder(), new AiService(), new PptGenerator());
@@ -71,8 +72,13 @@ public class KantaraPipeline {
         pptGenerator.generatePresentation(aiResponse.presentation(), outputPath);
     }
 
-    private static void logInfo(String message) {
-        LOGGER.info("[Kantara] " + message);
+    public void setVerbose(boolean verbose) {
+        this.verbose = verbose;
+    }
+
+    private void logInfo(String message) {
+        if (verbose) {
+            LOGGER.info("[Kantara] " + message);
+        }
     }
 }
-
