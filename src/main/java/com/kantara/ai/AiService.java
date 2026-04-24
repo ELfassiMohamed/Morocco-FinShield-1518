@@ -1,4 +1,4 @@
-﻿package com.kantara.ai;
+package com.kantara.ai;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
