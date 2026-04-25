@@ -1,11 +1,13 @@
 package com.kantara.ai;
 
+import com.kantara.config.Config;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -14,7 +16,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class AiService {
@@ -23,40 +24,31 @@ public class AiService {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final URI apiUri;
-    private final boolean simulateCall;
 
     public AiService() {
-        this(HttpClient.newHttpClient(), URI.create("https://api.example.com/v1/insights"), true);
+        this(HttpClient.newHttpClient());
     }
 
-    public AiService(String apiUrl) {
-        this(HttpClient.newHttpClient(), URI.create(apiUrl), false);
-    }
-
-    public AiService(HttpClient httpClient, URI apiUri, boolean simulateCall) {
+    public AiService(HttpClient httpClient) {
         this.httpClient = httpClient;
-        this.apiUri = apiUri;
-        this.simulateCall = simulateCall;
         this.objectMapper = new ObjectMapper();
     }
 
-    public String generateInsights(Map<String, Object> payload) {
+    public String generateInsights(Map<String, Object> payload, Config config) {
         if (payload == null || payload.isEmpty()) {
-            throw new IllegalArgumentException("payload must not be null or empty");
+            throw new IllegalArgumentException("[Kantara] ERROR: Payload must not be empty.");
+        }
+        if (config == null) {
+            throw new IllegalArgumentException("[Kantara] ERROR: Configuration is missing.");
         }
 
         try {
             String payloadJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(payload);
             String prompt = buildPrompt(payloadJson);
+            URI requestUri = buildGenerateUri(config);
+            String requestBody = buildGeminiRequestBody(prompt);
 
-            if (simulateCall) {
-                return buildSimulatedResponse(payload);
-            }
-
-            String requestBody = objectMapper.writeValueAsString(Map.of("prompt", prompt));
-
-            HttpRequest request = HttpRequest.newBuilder(apiUri)
+            HttpRequest request = HttpRequest.newBuilder(requestUri)
                     .timeout(REQUEST_TIMEOUT)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
@@ -68,26 +60,24 @@ public class AiService {
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
             );
 
-            if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                return response.body();
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw new IllegalStateException("[Kantara] ERROR: AI request failed with status " + response.statusCode() + ".");
             }
 
-            throw new IllegalStateException(
-                    "AI API call failed. Status: " + response.statusCode() + ", Body: " + response.body()
-            );
+            return extractGeneratedText(response.body());
         } catch (JacksonException e) {
-            throw new IllegalStateException("Failed to convert payload or request to JSON", e);
+            throw new IllegalStateException("[Kantara] ERROR: Failed to build AI request payload.");
         } catch (IOException e) {
-            throw new IllegalStateException("I/O error while calling AI API", e);
+            throw new IllegalStateException("[Kantara] ERROR: Network error while calling AI service.");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("AI API call was interrupted", e);
+            throw new IllegalStateException("[Kantara] ERROR: AI request was interrupted.");
         }
     }
 
     public AiResponse parseAiResponse(String rawResponse) {
         if (rawResponse == null || rawResponse.isBlank()) {
-            throw new IllegalStateException("AI response is empty.");
+            throw new IllegalStateException("[Kantara] ERROR: AI response is empty.");
         }
 
         String json = extractJsonObject(rawResponse);
@@ -100,7 +90,85 @@ public class AiService {
             validate(parsed);
             return parsed;
         } catch (JacksonException e) {
-            throw new IllegalStateException("AI response contains invalid JSON.", e);
+            throw new IllegalStateException("[Kantara] ERROR: AI response contains invalid JSON.");
+        }
+    }
+
+    private URI buildGenerateUri(Config config) {
+        String endpoint = normalizeSegment(config.endpoint());
+        String model = normalizeSegment(config.model());
+        String apiKey = config.apiKey();
+
+        if (endpoint.isEmpty()) {
+            throw new IllegalStateException("[Kantara] ERROR: Endpoint is missing.");
+        }
+        if (model.isEmpty()) {
+            throw new IllegalStateException("[Kantara] ERROR: Model is missing.");
+        }
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("[Kantara] ERROR: Missing API key (KANTARA_API_KEY)");
+        }
+
+        String encodedKey = URLEncoder.encode(apiKey, StandardCharsets.UTF_8);
+        return URI.create(endpoint + "/" + model + ":generateContent?key=" + encodedKey);
+    }
+
+    private String normalizeSegment(String value) {
+        if (value == null) {
+            return "";
+        }
+        String trimmed = value.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
+    }
+
+    private String buildGeminiRequestBody(String prompt) throws JacksonException {
+        Map<String, Object> body = Map.of(
+                "contents", List.of(
+                        Map.of("parts", List.of(Map.of("text", prompt)))
+                )
+        );
+        return objectMapper.writeValueAsString(body);
+    }
+
+    private String extractGeneratedText(String responseBody) {
+        if (responseBody == null || responseBody.isBlank()) {
+            throw new IllegalStateException("[Kantara] ERROR: Empty AI response body.");
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode candidates = root.path("candidates");
+            if (!candidates.isArray()) {
+                throw new IllegalStateException("[Kantara] ERROR: Invalid AI response format.");
+            }
+
+            for (JsonNode candidate : candidates) {
+                JsonNode parts = candidate.path("content").path("parts");
+                if (!parts.isArray()) {
+                    continue;
+                }
+
+                StringBuilder text = new StringBuilder();
+                for (JsonNode part : parts) {
+                    String value = part.path("text").asText("").trim();
+                    if (!value.isEmpty()) {
+                        if (text.length() > 0) {
+                            text.append('\n');
+                        }
+                        text.append(value);
+                    }
+                }
+
+                if (text.length() > 0) {
+                    return text.toString();
+                }
+            }
+            throw new IllegalStateException("[Kantara] ERROR: No generated text found in AI response.");
+        } catch (JacksonException e) {
+            throw new IllegalStateException("[Kantara] ERROR: Invalid AI response format.");
         }
     }
 
@@ -175,97 +243,10 @@ public class AiService {
                 """.formatted(payloadJson);
     }
 
-    private String buildSimulatedResponse(Map<String, Object> payload) throws JacksonException {
-        Map<String, Object> kpis = asMap(payload.get("kpis"));
-
-        String period = String.valueOf(payload.getOrDefault("period", "N/A"));
-
-        double revenue = asDouble(kpis.get("revenue"), 0.0);
-        double cost = asDouble(kpis.get("cost"), 0.0);
-        double churnRatio = asDouble(kpis.get("customer_churn"), 0.0);
-        double margin = revenue - cost;
-        double marginPct = revenue > 0 ? (margin / revenue) * 100.0 : 0.0;
-        double costToRevenuePct = revenue > 0 ? (cost / revenue) * 100.0 : 0.0;
-        int highlightsCount = payload.get("highlights") instanceof List<?> h ? h.size() : 0;
-
-        List<String> insights = new ArrayList<>();
-        insights.add(String.format(
-                Locale.ROOT,
-                "In %s, revenue reached %s against %s in costs, generating %s gross margin (%.1f%%); sustain pricing and mix discipline to protect profitability.",
-                period, formatHumanNumber(revenue), formatHumanNumber(cost), formatHumanNumber(margin), marginPct
-        ));
-        insights.add(String.format(
-                Locale.ROOT,
-                "Customer churn is %.1f%% (retention %.1f%%), signaling growth drag; prioritize retention programs in high-value segments before scaling acquisition spend.",
-                churnRatio * 100.0, (1.0 - churnRatio) * 100.0
-        ));
-        insights.add(String.format(
-                Locale.ROOT,
-                "Cost-to-revenue is %.1f%%, leaving %.1f%% contribution headroom; tightening variable costs by even 1-2 points would materially improve operating flexibility.",
-                costToRevenuePct, marginPct
-        ));
-        insights.add(String.format(
-                Locale.ROOT,
-                "The dataset includes %d KPI fields and %d highlighted signals, enough for directional decisions now but requiring broader KPI coverage for root-cause precision.",
-                kpis.size(), highlightsCount
-        ));
-
-        List<Map<String, Object>> slides = List.of(
-                Map.of(
-                        "title", "Executive Summary",
-                        "bullets", List.of(
-                                String.format(Locale.ROOT, "%s delivered %s revenue and %s gross margin, confirming positive unit economics.", period, formatHumanNumber(revenue), formatHumanNumber(margin)),
-                                String.format(Locale.ROOT, "Profitability stands at %.1f%% margin, but growth quality is pressured by %.1f%% churn.", marginPct, churnRatio * 100.0),
-                                String.format(Locale.ROOT, "Near-term performance depends on balancing cost control (%.1f%% cost-to-revenue) with retention recovery.", costToRevenuePct)
-                        )
-                ),
-                Map.of(
-                        "title", "Key Metrics",
-                        "bullets", List.of(
-                                String.format(Locale.ROOT, "Revenue: %s", formatHumanNumber(revenue)),
-                                String.format(Locale.ROOT, "Cost: %s", formatHumanNumber(cost)),
-                                String.format(Locale.ROOT, "Gross margin: %s (%.1f%%)", formatHumanNumber(margin), marginPct),
-                                String.format(Locale.ROOT, "Customer churn: %.1f%% | Retention: %.1f%%", churnRatio * 100.0, (1.0 - churnRatio) * 100.0)
-                        )
-                ),
-                Map.of(
-                        "title", "Trends / Analysis",
-                        "bullets", List.of(
-                                String.format(Locale.ROOT, "Current model converts %.1f%% of revenue into gross margin, indicating pricing/cost structure is viable.", marginPct),
-                                String.format(Locale.ROOT, "Churn at %.1f%% suggests acquisition efficiency may erode unless lifecycle interventions improve retention.", churnRatio * 100.0),
-                                String.format(Locale.ROOT, "%d highlighted signals indicate directional momentum, but deeper trend confidence needs time-series and segment breakdowns.", highlightsCount)
-                        )
-                ),
-                Map.of(
-                        "title", "Risks / Issues",
-                        "bullets", List.of(
-                                String.format(Locale.ROOT, "Primary risk: %.1f%% churn can offset net new growth and inflate customer acquisition payback periods.", churnRatio * 100.0),
-                                String.format(Locale.ROOT, "Cost exposure: %s cost base (%.1f%% of revenue) may compress margin under demand volatility.", formatHumanNumber(cost), costToRevenuePct),
-                                String.format(Locale.ROOT, "Data risk: only %d KPI fields can mask channel, cohort, or regional underperformance.", kpis.size())
-                        )
-                ),
-                Map.of(
-                        "title", "Recommendations",
-                        "bullets", List.of(
-                                String.format(Locale.ROOT, "Launch a retention sprint targeting a churn reduction of 1-2 points from the current %.1f%% baseline.", churnRatio * 100.0),
-                                String.format(Locale.ROOT, "Set a monthly guardrail to keep cost-to-revenue below %.1f%% and protect margin above %.1f%%.", costToRevenuePct, marginPct),
-                                "Expand KPI tracking by segment, channel, and region to improve intervention precision and capital allocation."
-                        )
-                )
-        );
-
-        Map<String, Object> simulated = Map.of(
-                "keyInsights", insights,
-                "presentation", slides
-        );
-
-        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(simulated);
-    }
-
     private String extractJsonObject(String rawResponse) {
         int start = rawResponse.indexOf('{');
         if (start < 0) {
-            throw new IllegalStateException("AI response does not contain a JSON object.");
+            throw new IllegalStateException("[Kantara] ERROR: AI response does not contain JSON.");
         }
 
         boolean inString = false;
@@ -301,7 +282,7 @@ public class AiService {
             }
         }
 
-        throw new IllegalStateException("AI response JSON is incomplete.");
+        throw new IllegalStateException("[Kantara] ERROR: AI response JSON is incomplete.");
     }
 
     private List<String> readStringArray(JsonNode root, String... fieldNames) {
@@ -341,57 +322,21 @@ public class AiService {
 
     private void validate(AiResponse response) {
         if (response.presentation().isEmpty()) {
-            throw new IllegalStateException("AI response validation failed: presentation is empty.");
+            throw new IllegalStateException("[Kantara] ERROR: AI response validation failed: presentation is empty.");
         }
 
         for (int i = 0; i < response.presentation().size(); i++) {
             Slide slide = response.presentation().get(i);
             if (slide.title() == null || slide.title().isBlank()) {
                 throw new IllegalStateException(
-                        "AI response validation failed: slide " + (i + 1) + " has no title."
+                        "[Kantara] ERROR: AI response validation failed: slide " + (i + 1) + " has no title."
                 );
             }
             if (slide.bullets() == null || slide.bullets().isEmpty()) {
                 throw new IllegalStateException(
-                        "AI response validation failed: slide " + (i + 1) + " has no bullets."
+                        "[Kantara] ERROR: AI response validation failed: slide " + (i + 1) + " has no bullets."
                 );
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> asMap(Object value) {
-        if (value instanceof Map<?, ?> m) {
-            return (Map<String, Object>) m;
-        }
-        return Map.of();
-    }
-
-    private double asDouble(Object value, double fallback) {
-        if (value instanceof Number number) {
-            return number.doubleValue();
-        }
-        if (value instanceof String text) {
-            try {
-                return Double.parseDouble(text);
-            } catch (NumberFormatException ignored) {
-                return fallback;
-            }
-        }
-        return fallback;
-    }
-
-    private String formatHumanNumber(double value) {
-        double absolute = Math.abs(value);
-        if (absolute >= 1_000_000_000) {
-            return String.format(Locale.US, "%.2fB", value / 1_000_000_000.0);
-        }
-        if (absolute >= 1_000_000) {
-            return String.format(Locale.US, "%.2fM", value / 1_000_000.0);
-        }
-        if (absolute >= 1_000) {
-            return String.format(Locale.US, "%,.0f", value);
-        }
-        return String.format(Locale.US, "%.2f", value);
     }
 }

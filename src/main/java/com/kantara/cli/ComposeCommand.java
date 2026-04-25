@@ -1,5 +1,7 @@
 package com.kantara.cli;
 
+import com.kantara.config.Config;
+import com.kantara.config.LocalTestConfigLoader;
 import com.kantara.pipeline.KantaraPipeline;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -26,6 +28,9 @@ public class ComposeCommand implements Callable<Integer> {
             description = "Path where the generated PowerPoint (.pptx) will be saved"
     )
     private String outputPath;
+
+    @Option(names = "--config", description = "Path to optional JSON config file")
+    private String configPath;
 
     @Option(names = "--verbose", description = "Enable detailed logs")
     boolean verbose;
@@ -89,13 +94,22 @@ public class ComposeCommand implements Callable<Integer> {
         pipeline.setVerbose(verbose);
         long startTimeMs = System.currentTimeMillis();
         try {
-            pipeline.runPipeline(dataPath, reportPath, outputPath);
+            //for local testing
+            Config config = LocalTestConfigLoader.load();
+            //production 
+            //Config config = ConfigLoader.load(configPath);
+            pipeline.runPipeline(dataPath, reportPath, outputPath, config);
             double elapsedSeconds = (System.currentTimeMillis() - startTimeMs) / 1000.0;
             System.out.println("[Kantara] Presentation generated successfully: " + outputPath);
             System.out.println("[Kantara] Completed in " + String.format(Locale.ROOT, "%.1f", elapsedSeconds) + " seconds");
             return 0;
         } catch (Exception e) {
-            System.err.println("[Kantara] ERROR: " + e.getMessage());
+            String message = e.getMessage();
+            if (message != null && message.startsWith("[Kantara] ERROR:")) {
+                System.err.println(message);
+            } else {
+                System.err.println("[Kantara] ERROR: " + (message == null ? "Unexpected failure." : message));
+            }
             return 1;
         }
     }

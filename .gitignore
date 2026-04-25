@@ -16,6 +16,10 @@ buildNumber.properties
 # Log file
 *.log
 
+# Environment files
+.env
+.env.local
+
 # Package Files #
 *.jar
 *.war

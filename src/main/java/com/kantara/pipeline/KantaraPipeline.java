@@ -3,6 +3,7 @@ package com.kantara.pipeline;
 import com.kantara.ai.AiResponse;
 import com.kantara.ai.AiService;
 import com.kantara.ai.PayloadBuilder;
+import com.kantara.config.Config;
 import com.kantara.extractor.DataExtractor;
 import com.kantara.extractor.PdfExtractor;
 import com.kantara.generator.PptGenerator;
@@ -40,7 +41,7 @@ public class KantaraPipeline {
         this.pptGenerator = pptGenerator;
     }
 
-    public void runPipeline(String excelPath, String pdfPath, String outputPath) {
+    public void runPipeline(String excelPath, String pdfPath, String outputPath, Config config) {
         logInfo("Extracting Excel...");
         List<Map<String, String>> excelData = dataExtractor.extract(excelPath);
         if (excelData.isEmpty()) {
@@ -58,15 +59,10 @@ public class KantaraPipeline {
         Map<String, Object> payload = payloadBuilder.buildPayload(excelData, pdfSections);
 
         logInfo("Calling AI...");
-        String rawAiResponse = aiService.generateInsights(payload);
+        String rawAiResponse = aiService.generateInsights(payload, config);
 
         logInfo("Parsing AI response...");
-        AiResponse aiResponse;
-        try {
-            aiResponse = aiService.parseAiResponse(rawAiResponse);
-        } catch (IllegalStateException e) {
-            throw new IllegalStateException("AI response is invalid: " + e.getMessage(), e);
-        }
+        AiResponse aiResponse = aiService.parseAiResponse(rawAiResponse);
 
         logInfo("Generating PPT...");
         pptGenerator.generatePresentation(aiResponse.presentation(), outputPath);
