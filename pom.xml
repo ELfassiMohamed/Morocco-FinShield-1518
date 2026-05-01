@@ -14,11 +14,9 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- Dependency Versions -->
-        <picocli.version>4.7.6</picocli.version>
         <poi.version>5.4.1</poi.version>
         <pdfbox.version>3.0.5</pdfbox.version>
-        <jackson.version>3.1.0</jackson.version>
-        <lombok.version>1.18.36</lombok.version>
+        <jackson.version>2.16.1</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
         <logback.version>1.5.16</logback.version>
         <log4j2.version>2.23.1</log4j2.version>
@@ -26,11 +24,11 @@
     </properties>
 
     <dependencies>
-        <!-- CLI Parsing -->
+        <!-- Web Server -->
         <dependency>
-            <groupId>info.picocli</groupId>
-            <artifactId>picocli</artifactId>
-            <version>${picocli.version}</version>
+            <groupId>io.javalin</groupId>
+            <artifactId>javalin</artifactId>
+            <version>7.2.0</version>
         </dependency>
 
         <!-- Document Extraction -->
@@ -47,18 +45,12 @@
 
         <!-- JSON Processing -->
         <dependency>
-            <groupId>tools.jackson.core</groupId>
+            <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
         </dependency>
 
-        <!-- Boilerplate Reduction (Lombok) -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
-            <scope>provided</scope>
-        </dependency>
+        <!-- Boilerplate Reduction (Lombok removed) -->
 
         <!-- Logging (SLF4J + Logback) -->
         <dependency>
@@ -95,13 +87,6 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>${maven.compiler.release}</release>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>${lombok.version}</version>
-                        </path>
-                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>
@@ -119,7 +104,7 @@
                             <shadedArtifactAttached>false</shadedArtifactAttached>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>com.kantara.cli.Main</mainClass>
+                                    <mainClass>com.kantara.web.Main</mainClass>
                                 </transformer>
                             </transformers>
                         </configuration>

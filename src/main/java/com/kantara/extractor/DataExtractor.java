@@ -31,24 +31,35 @@ public class DataExtractor implements Extractable {
             throw new ValidationException("File path cannot be null or empty");
         }
 
-        String lowerPath = filePath.toLowerCase();
+        try {
+            return extract(new FileInputStream(filePath), filePath);
+        } catch (FileNotFoundException e) {
+            throw new ExtractionException("File not found: " + filePath, e);
+        }
+    }
+
+    public List<Map<String, String>> extract(InputStream inputStream, String fileName) {
+        if (inputStream == null || fileName == null || fileName.isEmpty()) {
+            throw new ValidationException("Stream and file name cannot be null or empty");
+        }
+
+        String lowerPath = fileName.toLowerCase();
         if (lowerPath.endsWith(".xlsx")) {
-            return extractExcel(filePath);
+            return extractExcel(inputStream, fileName);
         } else if (lowerPath.endsWith(".csv")) {
-            return extractCsv(filePath);
+            return extractCsv(inputStream, fileName);
         } else {
-            throw new ExtractionException("Unsupported file format: " + filePath);
+            throw new ExtractionException("Unsupported file format: " + fileName);
         }
     }
 
     /**
      * Logic for extracting data from Excel (.xlsx) files.
      */
-    private List<Map<String, String>> extractExcel(String filePath) {
+    private List<Map<String, String>> extractExcel(InputStream fis, String fileName) {
         List<Map<String, String>> result = new ArrayList<>();
 
-        try (InputStream fis = new FileInputStream(filePath);
-             Workbook workbook = new XSSFWorkbook(fis)) {
+        try (Workbook workbook = new XSSFWorkbook(fis)) {
 
             Sheet sheet = workbook.getSheetAt(0);
             if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
@@ -96,7 +107,7 @@ public class DataExtractor implements Extractable {
             }
 
         } catch (IOException e) {
-            throw new ExtractionException("Error reading Excel file: " + filePath, e);
+            throw new ExtractionException("Error reading Excel file: " + fileName, e);
         }
 
         return result;
@@ -105,7 +116,7 @@ public class DataExtractor implements Extractable {
     /**
      * Logic for extracting data from CSV files.
      */
-    private List<Map<String, String>> extractCsv(String filePath) {
+    private List<Map<String, String>> extractCsv(InputStream is, String fileName) {
         List<Map<String, String>> result = new ArrayList<>();
 
         CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
@@ -115,7 +126,7 @@ public class DataExtractor implements Extractable {
                 .setTrim(true)
                 .build();
 
-        try (Reader reader = new FileReader(filePath, StandardCharsets.UTF_8);
+        try (Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
              CSVParser csvParser = new CSVParser(reader, csvFormat)) {
 
             Map<String, Integer> headerMap = csvParser.getHeaderMap();
@@ -143,7 +154,7 @@ public class DataExtractor implements Extractable {
             }
 
         } catch (IOException e) {
-            throw new ExtractionException("Error reading CSV file: " + filePath, e);
+            throw new ExtractionException("Error reading CSV file: " + fileName, e);
         }
 
         return result;
