@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kantara - Local Document Preprocessor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <!-- highlight.js for syntax highlighting -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
@@ -12,71 +11,84 @@
 </head>
 <body>
     <div class="app-container">
-        <header>
-            <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                <h1>Kantara</h1>
-            </div>
-            <p class="subtitle">Local Document Preprocessor for LLMs</p>
-        </header>
+        <div class="k-root">
+            <header class="k-header">
+                <div class="k-brand">
+                    <div class="k-logo">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="3" y="2" width="12" height="2" rx="1" fill="white" opacity="0.9"/>
+                            <rect x="3" y="6" width="8" height="2" rx="1" fill="white" opacity="0.7"/>
+                            <rect x="3" y="10" width="10" height="2" rx="1" fill="white" opacity="0.7"/>
+                            <rect x="3" y="14" width="6" height="2" rx="1" fill="white" opacity="0.5"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <div class="k-title">Kantara</div>
+                        <div class="k-subtitle">Local document preprocessor</div>
+                    </div>
+                </div>
+            </header>
 
-        <main>
-            <div class="controls-section">
-                <div class="format-selector">
-                    <label>Output Format:</label>
-                    <div class="toggle-group" id="format-toggle">
-                        <input type="radio" id="format-json" name="format" value="json" checked>
-                        <label for="format-json">JSON</label>
-                        
-                        <input type="radio" id="format-markdown" name="format" value="markdown">
-                        <label for="format-markdown">Markdown</label>
+            <div class="k-body">
+                <div class="k-drop" id="upload-zone">
+                    <input type="file" id="file-input" accept=".pdf,.xlsx,.csv" style="display: none;">
+                    <div class="k-drop-icon">
+                        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                            <path d="M14 4v14M8 12l6-6 6 6" stroke="rgba(232,229,223,0.4)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M4 20v2a2 2 0 002 2h16a2 2 0 002-2v-2" stroke="rgba(232,229,223,0.25)" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                    <div class="k-drop-text">Drop a document here</div>
+                    <div class="k-drop-hint">PDF · XLSX · CSV · up to 50 MB</div>
+                </div>
+
+                <div class="k-toolbar">
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:12px;color:rgba(232,229,223,0.35);letter-spacing:0.06em;text-transform:uppercase;">Output format</span>
+                        <div class="k-format-group" id="format-toggle">
+                            <input type="radio" id="format-json" name="format" value="json" checked>
+                            <label for="format-json" class="k-format-btn">JSON</label>
+                            
+                            <input type="radio" id="format-markdown" name="format" value="markdown">
+                            <label for="format-markdown" class="k-format-btn">Markdown</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="processing-state hidden" id="processing-state">
+                    <div class="spinner"></div>
+                    <p style="font-size: 14px; color: var(--text-muted);">Extracting and optimizing tokens...</p>
+                </div>
+
+                <div class="results-section hidden" id="results-section">
+                    <div class="k-file-card">
+                        <div class="k-file-bar">
+                            <span id="res-filename" class="k-file-name">filename.pdf</span>
+                            <span id="res-tokens" class="k-badge k-badge-token">~0 tokens</span>
+                            <span id="res-time" class="k-badge k-badge-time">0ms</span>
+                            <div class="k-file-actions">
+                                <button id="btn-copy" class="k-btn k-btn-ghost">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="3" width="9" height="9" rx="1.5" stroke="currentColor" stroke-width="1.2"/><path d="M4 3V2a1 1 0 011-1h6a1 1 0 011 1v8a1 1 0 01-1 1h-1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>
+                                    Copy
+                                </button>
+                                <button id="btn-download" class="k-btn k-btn-primary">
+                                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3" stroke="white" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11h10" stroke="white" stroke-width="1.3" stroke-linecap="round"/></svg>
+                                    Download
+                                </button>
+                            </div>
+                        </div>
+                        <div class="k-code-area">
+                            <pre><code id="output-code" class="language-json"></code></pre>
+                        </div>
                     </div>
                 </div>
             </div>
-
-            <div class="upload-zone" id="upload-zone">
-                <input type="file" id="file-input" accept=".pdf,.xlsx,.csv" style="display: none;">
-                <div class="upload-content">
-                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                    <h3>Drag & Drop file here</h3>
-                    <p>or click to browse</p>
-                    <span class="supported-formats">Supported: PDF, XLSX, CSV (Max 50MB)</span>
-                </div>
-            </div>
-
-            <div class="processing-state hidden" id="processing-state">
-                <div class="spinner"></div>
-                <p>Extracting and optimizing tokens...</p>
-            </div>
-
-            <div class="results-section hidden" id="results-section">
-                <div class="results-header">
-                    <div class="file-info">
-                        <span id="res-filename" class="tag file-tag">filename.pdf</span>
-                        <span id="res-tokens" class="tag token-tag">~0 tokens</span>
-                        <span id="res-time" class="tag time-tag">0ms</span>
-                    </div>
-                    <div class="actions">
-                        <button id="btn-copy" class="btn secondary">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            Copy
-                        </button>
-                        <button id="btn-download" class="btn primary">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            Download
-                        </button>
-                    </div>
-                </div>
-                <div class="code-container">
-                    <pre><code id="output-code" class="language-json"></code></pre>
-                </div>
-            </div>
-            
-            <div class="error-toast hidden" id="error-toast">
-                <span id="error-message">Error processing file</span>
-                <button id="close-error">&times;</button>
-            </div>
-        </main>
+        </div>
+        
+        <div class="error-toast hidden" id="error-toast">
+            <span id="error-message">Error processing file</span>
+            <button id="close-error">&times;</button>
+        </div>
     </div>
     <script src="app.js"></script>
 </body>

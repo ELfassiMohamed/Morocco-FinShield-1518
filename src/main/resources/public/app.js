@@ -132,7 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentResult) return;
         navigator.clipboard.writeText(currentResult.output).then(() => {
             const originalText = btnCopy.innerHTML;
-            btnCopy.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied';
+            btnCopy.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copied';
             setTimeout(() => {
                 btnCopy.innerHTML = originalText;
             }, 2000);
