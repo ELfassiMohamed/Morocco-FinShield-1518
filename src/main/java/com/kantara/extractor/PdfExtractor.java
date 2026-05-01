@@ -5,6 +5,9 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,13 +40,25 @@ public class PdfExtractor implements TextExtractable {
             throw new ValidationException("PDF file not found: " + filePath);
         }
 
-        try (PDDocument document = Loader.loadPDF(pdfFile)) {
+        try {
+            return extractText(new FileInputStream(pdfFile));
+        } catch (FileNotFoundException e) {
+            throw new ExtractionException("PDF file not found: " + filePath, e);
+        }
+    }
+
+    public String extractText(InputStream stream) {
+        if (stream == null) {
+            throw new ValidationException("InputStream must not be null.");
+        }
+
+        try (PDDocument document = Loader.loadPDF(stream.readAllBytes())) {
             PDFTextStripper stripper = new PDFTextStripper();
             stripper.setSortByPosition(false);
             String rawText = stripper.getText(document);
             return cleanText(rawText);
         } catch (IOException e) {
-            throw new ExtractionException("Failed to extract PDF text from: " + filePath, e);
+            throw new ExtractionException("Failed to extract PDF text from stream.", e);
         }
     }
 
