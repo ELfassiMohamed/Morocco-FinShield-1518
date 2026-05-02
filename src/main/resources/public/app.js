@@ -4,6 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const processingState = document.getElementById('processing-state');
     const resultsSection = document.getElementById('results-section');
     const outputCode = document.getElementById('output-code');
+    const outputRaw = document.getElementById('output-raw');
+    const outputRendered = document.getElementById('output-rendered');
+    const viewToggle = document.getElementById('view-toggle');
+    const formatRadios = document.querySelectorAll('input[name="format"]');
     const errorToast = document.getElementById('error-toast');
     const errorMessage = document.getElementById('error-message');
     const closeErrorBtn = document.getElementById('close-error');
@@ -16,8 +20,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Buttons
     const btnCopy = document.getElementById('btn-copy');
     const btnDownload = document.getElementById('btn-download');
+    const viewBtns = document.querySelectorAll('.k-view-btn');
 
     let currentResult = null;
+    let lastUploadedFile = null;
 
     // --- Drag and Drop Handlers ---
     uploadZone.addEventListener('click', () => fileInput.click());
@@ -58,8 +64,18 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        lastUploadedFile = file;
         processFile(file);
     }
+
+    // Handle format change after upload
+    formatRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (lastUploadedFile) {
+                processFile(lastUploadedFile);
+            }
+        });
+    });
 
     function processFile(file) {
         const format = document.querySelector('input[name="format"]:checked').value;
@@ -104,16 +120,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update tags
         resFilename.textContent = data.sourceFileName;
-        resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} tokens`;
+        resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} LLM tokens`;
         resTime.textContent = `${data.processingTimeMs}ms`;
 
         // Update code block
         outputCode.className = data.format === 'json' ? 'language-json' : 'language-markdown';
         outputCode.textContent = data.output;
         
+        // Handle markdown rendering
+        if (data.format === 'markdown') {
+            viewToggle.classList.remove('hidden');
+            outputRendered.innerHTML = marked.parse(data.output);
+            switchView('rendered');
+        } else {
+            viewToggle.classList.add('hidden');
+            switchView('raw');
+        }
+
         // Highlight syntax
         hljs.highlightElement(outputCode);
     }
+
+    function switchView(view) {
+        viewBtns.forEach(btn => {
+            if (btn.dataset.view === view) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+
+        if (view === 'rendered') {
+            outputRendered.classList.remove('hidden');
+            outputRaw.classList.add('hidden');
+        } else {
+            outputRendered.classList.add('hidden');
+            outputRaw.classList.remove('hidden');
+        }
+    }
+
+    viewBtns.forEach(btn => {
+        btn.addEventListener('click', () => switchView(btn.dataset.view));
+    });
 
     function showError(msg) {
         errorMessage.textContent = msg;
