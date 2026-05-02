@@ -15,9 +15,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Result tags
     const resFilename = document.getElementById('res-filename');
     const resTokens = document.getElementById('res-tokens');
-    const resTime = document.getElementById('res-time');
     
     // Buttons
+    const btnClear = document.getElementById('btn-clear');
     const btnCopy = document.getElementById('btn-copy');
     const btnDownload = document.getElementById('btn-download');
     const viewBtns = document.querySelectorAll('.k-view-btn');
@@ -136,7 +136,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 tooltip.textContent = 'Estimated token count when this output is sent to an LLM (GPT-4, Claude, etc.). Based on ~4 chars/token.';
             }
         }
-        resTime.textContent = `${data.processingTimeMs}ms`;
 
         // Update code block
         outputCode.className = data.format === 'json' ? 'language-json' : 'language-markdown';
@@ -191,6 +190,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Actions ---
+    btnClear.addEventListener('click', () => {
+        currentResult = null;
+        lastUploadedFile = null;
+        fileInput.value = '';
+        
+        resultsSection.classList.add('hidden');
+        viewToggle.classList.add('hidden');
+        uploadZone.classList.remove('hidden');
+        
+        // Reset view state
+        outputRaw.classList.remove('hidden');
+        outputRendered.classList.add('hidden');
+        viewBtns.forEach(btn => {
+            if (btn.dataset.view === 'raw') btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+    });
+
     btnCopy.addEventListener('click', () => {
         if (!currentResult) return;
         navigator.clipboard.writeText(currentResult.output).then(() => {
