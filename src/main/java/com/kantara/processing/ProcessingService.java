@@ -66,6 +66,7 @@ public class ProcessingService {
         String formatted = formatter.format(extractedData, sourceType);
         String optimized = tokenOptimizer.optimize(formatted);
 
+        int originalTokenEstimate = formatted.length() / 4;
         int tokenEstimate = optimized.length() / 4;
         long duration = System.currentTimeMillis() - start;
 
@@ -74,6 +75,7 @@ public class ProcessingService {
             formatter.formatName(), 
             fileName, 
             sourceType, 
+            originalTokenEstimate,
             tokenEstimate, 
             duration
         );

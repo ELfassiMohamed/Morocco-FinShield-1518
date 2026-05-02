@@ -5,6 +5,7 @@ public record ProcessingResult(
     String format,
     String sourceFileName,
     String sourceType,
+    int originalTokenEstimate,
     int tokenEstimate,
     long processingTimeMs
 ) {}

@@ -120,7 +120,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Update tags
         resFilename.textContent = data.sourceFileName;
-        resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} LLM tokens`;
+        if (data.originalTokenEstimate && data.originalTokenEstimate > data.tokenEstimate) {
+            const saved = data.originalTokenEstimate - data.tokenEstimate;
+            const percent = Math.round((saved / data.originalTokenEstimate) * 100);
+            resTokens.innerHTML = `<span style="text-decoration: line-through; opacity: 0.5; margin-right: 4px;">${data.originalTokenEstimate.toLocaleString()}</span> ${data.tokenEstimate.toLocaleString()} tokens`;
+            
+            const tooltip = resTokens.nextElementSibling;
+            if (tooltip && tooltip.classList.contains('k-tooltip')) {
+                tooltip.innerHTML = `<strong>Optimization: -${percent}% tokens</strong><br>Before: ${data.originalTokenEstimate.toLocaleString()}<br>After: ${data.tokenEstimate.toLocaleString()}<br><br><span style="opacity:0.8">Estimated LLM tokens based on ~4 chars/token.</span>`;
+            }
+        } else {
+            resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} tokens`;
+            const tooltip = resTokens.nextElementSibling;
+            if (tooltip && tooltip.classList.contains('k-tooltip')) {
+                tooltip.textContent = 'Estimated token count when this output is sent to an LLM (GPT-4, Claude, etc.). Based on ~4 chars/token.';
+            }
+        }
         resTime.textContent = `${data.processingTimeMs}ms`;
 
         // Update code block
