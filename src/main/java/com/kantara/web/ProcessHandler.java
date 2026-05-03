@@ -27,8 +27,13 @@ public class ProcessHandler implements Handler {
             format = "json";
         }
 
+        String verbosity = ctx.formParam("verbosity");
+        if (verbosity == null || verbosity.isBlank()) {
+            verbosity = "standard";
+        }
+
         ProcessingResult result = processingService.process(
-            file.content(), file.filename(), format
+            file.content(), file.filename(), format, verbosity
         );
 
         ctx.json(result);

@@ -427,7 +427,46 @@ body {
     color: var(--text-secondary);
     line-height: 1.6;
 }
+/* --- Metrics Box --- */
+.k-metrics-box {
+    display: flex;
+    gap: 24px;
+    padding: 16px 20px;
+    background: rgba(232, 229, 223, 0.02);
+    border-bottom: 1px solid var(--border-color);
+}
 
+.k-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.k-metric-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.k-metric-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.k-metric-pct {
+    color: #4ade80; /* Success green */
+}
+
+@media (max-width: 600px) {
+    .k-metrics-box {
+        flex-direction: column;
+        gap: 16px;
+    }
+}
 .k-rendered-content table {
     width: 100%;
     border-collapse: collapse;

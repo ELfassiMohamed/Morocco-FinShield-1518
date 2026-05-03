@@ -20,18 +20,17 @@ public class MarkdownFormatter implements OutputFormatter {
 
     @SuppressWarnings("unchecked")
     private void formatPdf(StringBuilder sb, Map<String, Object> data) {
-        List<String> sections = (List<String>) data.get("sections");
+        List<Map<String, String>> sections = (List<Map<String, String>>) data.get("sections");
         if (sections != null) {
-            for (String section : sections) {
-                // If it looks like a heading (e.g. single line, uppercase)
-                String[] lines = section.split("\n", 2);
-                if (lines.length > 0 && lines[0].length() < 100 && lines[0].toUpperCase().equals(lines[0])) {
-                    sb.append("## ").append(lines[0].trim()).append("\n\n");
-                    if (lines.length > 1) {
-                        sb.append(lines[1].trim()).append("\n\n");
-                    }
-                } else {
-                    sb.append(section.trim()).append("\n\n");
+            for (Map<String, String> section : sections) {
+                String title = section.get("title");
+                String text = section.get("text");
+                
+                if (title != null && !title.isEmpty()) {
+                    sb.append("## ").append(title).append("\n\n");
+                }
+                if (text != null && !text.isEmpty()) {
+                    sb.append(text).append("\n\n");
                 }
             }
         }

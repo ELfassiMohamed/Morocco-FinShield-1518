@@ -10,6 +10,7 @@ import com.kantara.formatter.MarkdownFormatter;
 import com.kantara.formatter.OutputFormatter;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,7 +35,7 @@ public class ProcessingService {
         this.formatters.put(md.formatName(), md);
     }
 
-    public ProcessingResult process(InputStream fileStream, String fileName, String format) {
+    public ProcessingResult process(InputStream fileStream, String fileName, String format, String verbosity) {
         long start = System.currentTimeMillis();
         
         OutputFormatter formatter = formatters.get(format.toLowerCase());
@@ -45,20 +46,56 @@ public class ProcessingService {
         String lowerName = fileName.toLowerCase();
         Map<String, Object> extractedData = new LinkedHashMap<>();
         String sourceType;
+        String rawText = "";
 
         try {
             if (lowerName.endsWith(".pdf")) {
                 sourceType = "pdf";
-                String text = pdfExtractor.extractText(fileStream);
-                List<String> sections = pdfExtractor.extractSections(text);
+                rawText = pdfExtractor.extractText(fileStream);
+                List<String> rawSections = pdfExtractor.extractSections(rawText);
+                
+                List<Map<String, String>> sections = new ArrayList<>();
+                for (String section : rawSections) {
+                    String[] lines = section.split("\n", 2);
+                    Map<String, String> secMap = new LinkedHashMap<>();
+                    if (lines.length > 0 && lines[0].length() < 100 && lines[0].toUpperCase().equals(lines[0])) {
+                        secMap.put("title", lines[0].trim());
+                        secMap.put("text", lines.length > 1 ? lines[1].trim() : "");
+                    } else {
+                        secMap.put("title", "");
+                        secMap.put("text", section.trim());
+                    }
+                    sections.add(secMap);
+                }
+                
                 extractedData.put("sections", sections);
+                if (!"minimal".equalsIgnoreCase(verbosity)) {
+                    extractedData.put("tables", new ArrayList<>());
+                }
+                
             } else if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv")) {
                 sourceType = lowerName.endsWith(".xlsx") ? "xlsx" : "csv";
                 List<Map<String, String>> rows = dataExtractor.extract(fileStream, fileName);
-                extractedData.put("rows", rows);
+                
+                if ("minimal".equalsIgnoreCase(verbosity)) {
+                    extractedData.put("rows", rows);
+                } else {
+                    extractedData.put("tables", List.of(Map.of("name", "Sheet1", "data", rows)));
+                    extractedData.put("sections", new ArrayList<>());
+                }
             } else {
                 throw new ExtractionException("Unsupported file type: " + fileName);
             }
+
+            if ("verbose".equalsIgnoreCase(verbosity)) {
+                extractedData.put("raw_text", rawText);
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("filename", fileName);
+                metadata.put("source_type", sourceType);
+                metadata.put("extracted_at", System.currentTimeMillis());
+                extractedData.put("metadata", metadata);
+            }
+
         } catch (Exception e) {
             throw new ExtractionException("Failed to process file: " + fileName, e);
         }

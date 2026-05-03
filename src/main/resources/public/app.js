@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const outputRendered = document.getElementById('output-rendered');
     const viewToggle = document.getElementById('view-toggle');
     const formatRadios = document.querySelectorAll('input[name="format"]');
+    const verbosityRadios = document.querySelectorAll('input[name="verbosity"]');
     const errorToast = document.getElementById('error-toast');
     const errorMessage = document.getElementById('error-message');
     const closeErrorBtn = document.getElementById('close-error');
@@ -15,6 +16,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Result tags
     const resFilename = document.getElementById('res-filename');
     const resTokens = document.getElementById('res-tokens');
+    
+    // Metrics
+    const metricOriginal = document.getElementById('metric-original');
+    const metricProcessed = document.getElementById('metric-processed');
+    const metricReduction = document.getElementById('metric-reduction');
     
     // Buttons
     const btnClear = document.getElementById('btn-clear');
@@ -77,11 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    verbosityRadios.forEach(radio => {
+        radio.addEventListener('change', () => {
+            if (lastUploadedFile) {
+                processFile(lastUploadedFile);
+            }
+        });
+    });
+
     function processFile(file) {
         const format = document.querySelector('input[name="format"]:checked').value;
+        const verbosity = document.querySelector('input[name="verbosity"]:checked').value;
         const formData = new FormData();
         formData.append('file', file);
         formData.append('format', format);
+        formData.append('verbosity', verbosity);
 
         // UI updates
         uploadZone.classList.add('hidden');
@@ -129,12 +145,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tooltip && tooltip.classList.contains('k-tooltip')) {
                 tooltip.innerHTML = `<strong>Optimization: -${percent}% tokens</strong><br>Before: ${data.originalTokenEstimate.toLocaleString()}<br>After: ${data.tokenEstimate.toLocaleString()}<br><br><span style="opacity:0.8">Estimated LLM tokens based on ~4 chars/token.</span>`;
             }
+
+            // Update metrics box
+            metricOriginal.textContent = data.originalTokenEstimate.toLocaleString();
+            metricProcessed.textContent = data.tokenEstimate.toLocaleString();
+            metricReduction.textContent = `${percent}%`;
         } else {
             resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} tokens`;
             const tooltip = resTokens.nextElementSibling;
             if (tooltip && tooltip.classList.contains('k-tooltip')) {
                 tooltip.textContent = 'Estimated token count when this output is sent to an LLM (GPT-4, Claude, etc.). Based on ~4 chars/token.';
             }
+
+            // Update metrics box
+            metricOriginal.textContent = data.originalTokenEstimate ? data.originalTokenEstimate.toLocaleString() : '-';
+            metricProcessed.textContent = data.tokenEstimate.toLocaleString();
+            metricReduction.textContent = '0%';
         }
 
         // Update code block

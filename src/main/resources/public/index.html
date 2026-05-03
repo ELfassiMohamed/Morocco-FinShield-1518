@@ -42,6 +42,18 @@
                             <input type="radio" id="format-markdown" name="format" value="markdown">
                             <label for="format-markdown" class="k-format-btn">Markdown</label>
                         </div>
+
+                        <span style="font-size:12px;color:rgba(232,229,223,0.35);letter-spacing:0.06em;text-transform:uppercase;margin-left:12px;">Verbosity</span>
+                        <div class="k-format-group" id="verbosity-toggle">
+                            <input type="radio" id="verb-minimal" name="verbosity" value="minimal">
+                            <label for="verb-minimal" class="k-format-btn">Minimal</label>
+                            
+                            <input type="radio" id="verb-standard" name="verbosity" value="standard" checked>
+                            <label for="verb-standard" class="k-format-btn">Standard</label>
+
+                            <input type="radio" id="verb-verbose" name="verbosity" value="verbose">
+                            <label for="verb-verbose" class="k-format-btn">Verbose</label>
+                        </div>
                     </div>
                 </div>
 
@@ -89,6 +101,22 @@
                                 </button>
                             </div>
                         </div>
+                        
+                        <div class="k-metrics-box" id="metrics-box">
+                            <div class="k-metric">
+                                <span class="k-metric-label">Original tokens</span>
+                                <span class="k-metric-value" id="metric-original">-</span>
+                            </div>
+                            <div class="k-metric">
+                                <span class="k-metric-label">Processed tokens</span>
+                                <span class="k-metric-value" id="metric-processed">-</span>
+                            </div>
+                            <div class="k-metric">
+                                <span class="k-metric-label">Reduction</span>
+                                <span class="k-metric-value k-metric-pct" id="metric-reduction">-</span>
+                            </div>
+                        </div>
+
                         <div class="k-code-area">
                             <div id="output-rendered" class="k-rendered-content hidden"></div>
                             <pre id="output-raw"><code id="output-code" class="language-json"></code></pre>
