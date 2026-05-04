@@ -1,31 +1,39 @@
 package com.kantara.extractor;
 
+import com.kantara.exception.ExtractionException;
+import com.kantara.exception.ValidationException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.FormulaEvaluator;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.kantara.exception.*;
 
 /**
- * Extracts structured data from multiple file formats (.xlsx, .csv).
+ * Extracts structured table data from XLSX and CSV files.
  */
 public class DataExtractor {
 
-    /**
-     * Reads a file and extracts its content as a list of maps.
-     * Automatically detects file format based on extension.
-     *
-     * @param filePath The absolute or relative path to the file
-     * @return A list of rows represented as key-value pairs
-     */
+    private final org.apache.poi.ss.usermodel.DataFormatter cellFormatter =
+            new org.apache.poi.ss.usermodel.DataFormatter();
+
     public List<Map<String, String>> extract(String filePath) {
         if (filePath == null || filePath.isEmpty()) {
             throw new ValidationException("File path cannot be null or empty");
@@ -39,6 +47,28 @@ public class DataExtractor {
     }
 
     public List<Map<String, String>> extract(InputStream inputStream, String fileName) {
+        Map<String, Object> document = extractDocument(inputStream, fileName);
+        List<Map<String, Object>> tables = castTables(document.get("tables"));
+        if (tables.isEmpty()) {
+            return List.of();
+        }
+
+        List<Map<String, Object>> rows = castRows(tables.get(0).get("data"));
+        List<Map<String, String>> legacyRows = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            Map<String, String> legacyRow = new LinkedHashMap<>();
+            Object values = row.get("values");
+            if (values instanceof Map<?, ?> valueMap) {
+                for (Map.Entry<?, ?> entry : valueMap.entrySet()) {
+                    legacyRow.put(String.valueOf(entry.getKey()), String.valueOf(entry.getValue()));
+                }
+            }
+            legacyRows.add(legacyRow);
+        }
+        return legacyRows;
+    }
+
+    public Map<String, Object> extractDocument(InputStream inputStream, String fileName) {
         if (inputStream == null || fileName == null || fileName.isEmpty()) {
             throw new ValidationException("Stream and file name cannot be null or empty");
         }
@@ -48,153 +78,251 @@ public class DataExtractor {
             return extractExcel(inputStream, fileName);
         } else if (lowerPath.endsWith(".csv")) {
             return extractCsv(inputStream, fileName);
-        } else {
-            throw new ExtractionException("Unsupported file format: " + fileName);
         }
+        throw new ExtractionException("Unsupported file format: " + fileName);
     }
 
-    /**
-     * Logic for extracting data from Excel (.xlsx) files.
-     */
-    private List<Map<String, String>> extractExcel(InputStream fis, String fileName) {
-        List<Map<String, String>> result = new ArrayList<>();
+    private Map<String, Object> extractExcel(InputStream inputStream, String fileName) {
+        List<Map<String, Object>> tables = new ArrayList<>();
 
-        try (Workbook workbook = new XSSFWorkbook(fis)) {
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
 
-            Sheet sheet = workbook.getSheetAt(0);
-            if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
-                return result;
-            }
-
-            // Extract headers from the first row
-            Row headerRow = sheet.getRow(0);
-            if (headerRow == null) {
-                return result;
-            }
-
-            List<String> headers = new ArrayList<>();
-            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
-                Cell cell = headerRow.getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-                headers.add(getCellValueAsString(cell).trim());
-            }
-
-            // Extract data starting from the second row
-            for (int rowIndex = 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-                Row row = sheet.getRow(rowIndex);
-                if (row == null) {
-                    continue; 
+            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
+                Sheet sheet = workbook.getSheetAt(sheetIndex);
+                if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
+                    continue;
                 }
 
-                Map<String, String> rowData = new LinkedHashMap<>();
-                boolean hasData = false;
-
-                for (int colIndex = 0; colIndex < headers.size(); colIndex++) {
-                    Cell cell = row.getCell(colIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-                    String cellValue = getCellValueAsString(cell).trim();
-                    
-                    if (!cellValue.isEmpty()) {
-                        hasData = true;
-                    }
-                    
-                    String header = headers.get(colIndex);
-                    String key = header.isEmpty() ? "Column" + (colIndex + 1) : header;
-                    rowData.put(key, cellValue);
-                }
-
-                if (hasData) {
-                    result.add(rowData);
+                Map<String, Object> table = extractSheet(sheet, sheetIndex, evaluator);
+                if (!castRows(table.get("data")).isEmpty()) {
+                    tables.add(table);
                 }
             }
-
         } catch (IOException e) {
             throw new ExtractionException("Error reading Excel file: " + fileName, e);
         }
 
-        return result;
+        return documentMap(fileName, "xlsx", tables, Map.of("sheet_count", tables.size()));
     }
 
-    /**
-     * Logic for extracting data from CSV files.
-     */
-    private List<Map<String, String>> extractCsv(InputStream is, String fileName) {
-        List<Map<String, String>> result = new ArrayList<>();
+    private Map<String, Object> extractSheet(Sheet sheet, int sheetIndex, FormulaEvaluator evaluator) {
+        Row headerRow = firstNonEmptyRow(sheet);
+        List<String> headers = headersFromRow(headerRow, evaluator);
+        List<Map<String, Object>> rows = new ArrayList<>();
 
-        CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
-                .setHeader()
-                .setSkipHeaderRecord(true)
-                .setIgnoreHeaderCase(true)
-                .setTrim(true)
-                .build();
+        if (headerRow != null) {
+            for (int rowIndex = headerRow.getRowNum() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+                Row row = sheet.getRow(rowIndex);
+                if (row == null) {
+                    continue;
+                }
 
-        try (Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
-             CSVParser csvParser = new CSVParser(reader, csvFormat)) {
-
-            Map<String, Integer> headerMap = csvParser.getHeaderMap();
-            if (headerMap == null) {
-                return result;
+                Map<String, Object> rowData = rowMap(rowIndex + 1, headers, row, evaluator);
+                if (Boolean.TRUE.equals(rowData.get("has_data"))) {
+                    rowData.remove("has_data");
+                    rows.add(rowData);
+                }
             }
+        }
 
-            List<String> headers = csvParser.getHeaderNames();
+        Map<String, Object> table = new LinkedHashMap<>();
+        table.put("name", sheet.getSheetName());
+        table.put("sheet_index", sheetIndex);
+        table.put("header_row", headerRow == null ? null : headerRow.getRowNum() + 1);
+        table.put("row_count", rows.size());
+        table.put("column_count", headers.size());
+        table.put("headers", headers);
+        table.put("data", rows);
+        return table;
+    }
 
-            for (CSVRecord record : csvParser) {
-                Map<String, String> rowData = new LinkedHashMap<>();
-                boolean hasData = false;
+    private Row firstNonEmptyRow(Sheet sheet) {
+        for (int rowIndex = sheet.getFirstRowNum(); rowIndex <= sheet.getLastRowNum(); rowIndex++) {
+            Row row = sheet.getRow(rowIndex);
+            if (row == null) {
+                continue;
+            }
+            for (int colIndex = 0; colIndex < row.getLastCellNum(); colIndex++) {
+                Cell cell = row.getCell(colIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                if (cell != null && !cellFormatter.formatCellValue(cell).trim().isEmpty()) {
+                    return row;
+                }
+            }
+        }
+        return null;
+    }
 
-                for (String header : headers) {
-                    String value = record.get(header).trim();
-                    if (!value.isEmpty()) {
-                        hasData = true;
+    private List<String> headersFromRow(Row headerRow, FormulaEvaluator evaluator) {
+        List<String> headers = new ArrayList<>();
+        if (headerRow == null) {
+            return headers;
+        }
+
+        for (int colIndex = 0; colIndex < headerRow.getLastCellNum(); colIndex++) {
+            Cell cell = headerRow.getCell(colIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            String header = cellFormatter.formatCellValue(cell, evaluator).trim();
+            headers.add(header.isEmpty() ? "Column" + (colIndex + 1) : uniqueHeader(headers, header));
+        }
+        return headers;
+    }
+
+    private Map<String, Object> rowMap(
+            int rowNumber,
+            List<String> headers,
+            Row row,
+            FormulaEvaluator evaluator
+    ) {
+        Map<String, Object> rowData = new LinkedHashMap<>();
+        Map<String, String> values = new LinkedHashMap<>();
+        boolean hasData = false;
+
+        for (int colIndex = 0; colIndex < headers.size(); colIndex++) {
+            Cell cell = row.getCell(colIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            String cellValue = cellFormatter.formatCellValue(cell, evaluator).trim();
+            if (!cellValue.isEmpty()) {
+                hasData = true;
+            }
+            values.put(headers.get(colIndex), cellValue);
+        }
+
+        rowData.put("row_number", rowNumber);
+        rowData.put("values", values);
+        rowData.put("has_data", hasData);
+        return rowData;
+    }
+
+    private Map<String, Object> extractCsv(InputStream inputStream, String fileName) {
+        try {
+            byte[] bytes = inputStream.readAllBytes();
+            char delimiter = detectDelimiter(new String(bytes, StandardCharsets.UTF_8));
+            CSVFormat csvFormat = CSVFormat.DEFAULT.builder()
+                    .setDelimiter(delimiter)
+                    .setHeader()
+                    .setSkipHeaderRecord(true)
+                    .setIgnoreHeaderCase(false)
+                    .setTrim(true)
+                    .build();
+
+            List<Map<String, Object>> rows = new ArrayList<>();
+            List<String> headers;
+            try (Reader reader = new InputStreamReader(new ByteArrayInputStream(bytes), StandardCharsets.UTF_8);
+                 CSVParser csvParser = new CSVParser(reader, csvFormat)) {
+                headers = csvParser.getHeaderNames().stream()
+                        .map(String::trim)
+                        .map(header -> header.isEmpty() ? "Column" : header)
+                        .toList();
+
+                for (CSVRecord record : csvParser) {
+                    Map<String, String> values = new LinkedHashMap<>();
+                    boolean hasData = false;
+                    for (String header : headers) {
+                        String value = record.isMapped(header) ? record.get(header).trim() : "";
+                        if (!value.isEmpty()) {
+                            hasData = true;
+                        }
+                        values.put(header, value);
                     }
-                    rowData.put(header, value);
-                }
 
-                if (hasData) {
-                    result.add(rowData);
+                    if (hasData) {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("row_number", record.getRecordNumber() + 1);
+                        row.put("values", values);
+                        rows.add(row);
+                    }
                 }
             }
 
+            Map<String, Object> table = new LinkedHashMap<>();
+            table.put("name", "CSV");
+            table.put("delimiter", String.valueOf(delimiter));
+            table.put("header_row", 1);
+            table.put("row_count", rows.size());
+            table.put("column_count", headers.size());
+            table.put("headers", headers);
+            table.put("data", rows);
+            return documentMap(fileName, "csv", List.of(table), Map.of("delimiter", String.valueOf(delimiter)));
         } catch (IOException e) {
             throw new ExtractionException("Error reading CSV file: " + fileName, e);
         }
+    }
 
+    private char detectDelimiter(String sample) {
+        char[] candidates = {',', ';', '\t', '|'};
+        char best = ',';
+        int bestScore = -1;
+        String[] lines = sample.lines().limit(10).toArray(String[]::new);
+
+        for (char candidate : candidates) {
+            int score = 0;
+            int populatedLines = 0;
+            for (String line : lines) {
+                int count = 0;
+                for (int i = 0; i < line.length(); i++) {
+                    if (line.charAt(i) == candidate) {
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    populatedLines++;
+                    score += count;
+                }
+            }
+
+            score += populatedLines * 3;
+            if (score > bestScore) {
+                bestScore = score;
+                best = candidate;
+            }
+        }
+
+        return best;
+    }
+
+    private Map<String, Object> documentMap(
+            String fileName,
+            String sourceType,
+            List<Map<String, Object>> tables,
+            Map<String, Object> extraMetadata
+    ) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("filename", fileName);
+        metadata.put("source_type", sourceType);
+        metadata.put("table_count", tables.size());
+        metadata.put("extracted_at", Instant.now().toString());
+        metadata.putAll(extraMetadata);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("metadata", metadata);
+        result.put("tables", tables);
         return result;
     }
 
-    /**
-     * Safely converts different cell types to a String representation.
-     */
-    private String getCellValueAsString(Cell cell) {
-        if (cell == null) {
-            return "";
+    private String uniqueHeader(List<String> existing, String header) {
+        if (!existing.contains(header)) {
+            return header;
         }
 
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getDateCellValue().toString();
-                } else {
-                    double numericValue = cell.getNumericCellValue();
-                    long longValue = (long) numericValue;
-                    if (numericValue == longValue) {
-                        return String.valueOf(longValue);
-                    } else {
-                        return String.valueOf(numericValue);
-                    }
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                try {
-                    return cell.getStringCellValue();
-                } catch (IllegalStateException e) {
-                    return String.valueOf(cell.getNumericCellValue());
-                }
-            case BLANK:
-            case ERROR:
-            default:
-                return "";
+        int suffix = 2;
+        while (existing.contains(header + "_" + suffix)) {
+            suffix++;
         }
+        return header + "_" + suffix;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> castTables(Object value) {
+        if (value instanceof List<?>) {
+            return (List<Map<String, Object>>) value;
+        }
+        return List.of();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> castRows(Object value) {
+        if (value instanceof List<?>) {
+            return (List<Map<String, Object>>) value;
+        }
+        return List.of();
     }
 }

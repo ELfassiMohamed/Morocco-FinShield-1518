@@ -3,9 +3,13 @@ package com.kantara.web;
 import com.kantara.exception.ValidationException;
 import com.kantara.processing.ProcessingResult;
 import com.kantara.processing.ProcessingService;
+import com.kantara.processing.ProcessingService.SourceDocument;
 import io.javalin.http.Context;
 import io.javalin.http.Handler;
 import io.javalin.http.UploadedFile;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ProcessHandler implements Handler {
     
@@ -17,8 +21,15 @@ public class ProcessHandler implements Handler {
 
     @Override
     public void handle(Context ctx) {
-        UploadedFile file = ctx.uploadedFile("file");
-        if (file == null) {
+        List<UploadedFile> uploadedFiles = ctx.uploadedFiles("file");
+        if (uploadedFiles.isEmpty()) {
+            UploadedFile singleFile = ctx.uploadedFile("file");
+            if (singleFile != null) {
+                uploadedFiles = List.of(singleFile);
+            }
+        }
+
+        if (uploadedFiles.isEmpty()) {
             throw new ValidationException("No file uploaded.");
         }
 
@@ -32,9 +43,12 @@ public class ProcessHandler implements Handler {
             verbosity = "standard";
         }
 
-        ProcessingResult result = processingService.process(
-            file.content(), file.filename(), format, verbosity
-        );
+        List<SourceDocument> documents = new ArrayList<>();
+        for (UploadedFile file : uploadedFiles) {
+            documents.add(new SourceDocument(file.filename(), file.content()));
+        }
+
+        ProcessingResult result = processingService.processBatch(documents, format, verbosity);
 
         ctx.json(result);
     }

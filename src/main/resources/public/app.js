@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewBtns = document.querySelectorAll('.k-view-btn');
 
     let currentResult = null;
-    let lastUploadedFile = null;
+    let lastUploadedFiles = [];
 
     // --- Drag and Drop Handlers ---
     uploadZone.addEventListener('click', () => fileInput.click());
@@ -62,40 +62,46 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleFiles(files) {
         if (files.length === 0) return;
-        const file = files[0];
-        
-        // 50MB check
-        if (file.size > 50 * 1024 * 1024) {
-            showError("File exceeds 50MB limit.");
-            return;
+
+        const selectedFiles = Array.from(files);
+        for (const file of selectedFiles) {
+            if (file.size > 50 * 1024 * 1024) {
+                showError(`${file.name} exceeds the 50MB limit.`);
+                return;
+            }
+
+            if (!/\.(pdf|xlsx|csv)$/i.test(file.name)) {
+                showError(`${file.name} is not a supported file type.`);
+                return;
+            }
         }
 
-        lastUploadedFile = file;
-        processFile(file);
+        lastUploadedFiles = selectedFiles;
+        processFiles(selectedFiles);
     }
 
     // Handle format change after upload
     formatRadios.forEach(radio => {
         radio.addEventListener('change', () => {
-            if (lastUploadedFile) {
-                processFile(lastUploadedFile);
+            if (lastUploadedFiles.length > 0) {
+                processFiles(lastUploadedFiles);
             }
         });
     });
 
     verbosityRadios.forEach(radio => {
         radio.addEventListener('change', () => {
-            if (lastUploadedFile) {
-                processFile(lastUploadedFile);
+            if (lastUploadedFiles.length > 0) {
+                processFiles(lastUploadedFiles);
             }
         });
     });
 
-    function processFile(file) {
+    function processFiles(files) {
         const format = document.querySelector('input[name="format"]:checked').value;
         const verbosity = document.querySelector('input[name="verbosity"]:checked').value;
         const formData = new FormData();
-        formData.append('file', file);
+        files.forEach(file => formData.append('file', file));
         formData.append('format', format);
         formData.append('verbosity', verbosity);
 
@@ -135,7 +141,9 @@ document.addEventListener('DOMContentLoaded', () => {
         resultsSection.classList.remove('hidden');
 
         // Update tags
-        resFilename.textContent = data.sourceFileName;
+        resFilename.textContent = data.fileCount && data.fileCount > 1
+            ? `${data.fileCount} files`
+            : data.sourceFileName;
         if (data.originalTokenEstimate && data.originalTokenEstimate > data.tokenEstimate) {
             const saved = data.originalTokenEstimate - data.tokenEstimate;
             const percent = Math.round((saved / data.originalTokenEstimate) * 100);
@@ -149,7 +157,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update metrics box
             metricOriginal.textContent = data.originalTokenEstimate.toLocaleString();
             metricProcessed.textContent = data.tokenEstimate.toLocaleString();
-            metricReduction.textContent = `${percent}%`;
+            metricReduction.textContent = data.chunkCount
+                ? `${percent}% · ${data.chunkCount} chunks`
+                : `${percent}%`;
         } else {
             resTokens.textContent = `~${data.tokenEstimate.toLocaleString()} tokens`;
             const tooltip = resTokens.nextElementSibling;
@@ -160,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Update metrics box
             metricOriginal.textContent = data.originalTokenEstimate ? data.originalTokenEstimate.toLocaleString() : '-';
             metricProcessed.textContent = data.tokenEstimate.toLocaleString();
-            metricReduction.textContent = '0%';
+            metricReduction.textContent = data.chunkCount ? `${data.chunkCount} chunks` : '0%';
         }
 
         // Update code block
@@ -218,7 +228,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Actions ---
     btnClear.addEventListener('click', () => {
         currentResult = null;
-        lastUploadedFile = null;
+        lastUploadedFiles = [];
         fileInput.value = '';
         
         resultsSection.classList.add('hidden');
@@ -249,7 +259,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentResult) return;
         
         const ext = currentResult.format === 'json' ? '.json' : '.md';
-        const filename = currentResult.sourceFileName.replace(/\.[^/.]+$/, "") + "_processed" + ext;
+        const baseName = currentResult.fileCount && currentResult.fileCount > 1
+            ? "kantara_batch"
+            : currentResult.sourceFileName.replace(/\.[^/.]+$/, "");
+        const filename = baseName + "_processed" + ext;
         
         const blob = new Blob([currentResult.output], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);

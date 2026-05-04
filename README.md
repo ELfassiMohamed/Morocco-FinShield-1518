@@ -7,12 +7,14 @@ Kantara is a fast, local-first document preprocessor designed to extract and opt
 - **Local-First & Fast:** Runs entirely on your machine. No cloud dependencies, no data leaves your computer.
 - **Embedded Web UI:** Comes with a beautiful, responsive Single Page Application (SPA) bundled inside the JAR.
 - **Supported Formats:**
-  - PDF (Text extraction with basic section structuring)
-  - XLSX & CSV (Tabular data extraction)
+  - PDF (page-aware text extraction, metadata, section detection, and table-like block detection)
+  - XLSX & CSV (multi-sheet tables, headers, row numbers, delimiter detection, and formatted cell values)
 - **Output Formats:**
   - **JSON:** Structured and clean, ready for programmatic consumption.
   - **Markdown:** Clean and readable, optimized for LLM prompting.
 - **Token Optimization:** Automatically cleans up whitespace, collapses multiple newlines, and strips common boilerplate to save LLM tokens.
+- **LLM Chunking:** Adds source-aware chunks with token estimates for direct use in retrieval and prompting workflows.
+- **Batch Processing:** Upload one document or a batch of PDF/XLSX/CSV files in the embedded web UI.
 
 ## Prerequisites
 

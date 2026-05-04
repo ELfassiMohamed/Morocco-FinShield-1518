@@ -7,5 +7,7 @@ public record ProcessingResult(
     String sourceType,
     int originalTokenEstimate,
     int tokenEstimate,
-    long processingTimeMs
+    long processingTimeMs,
+    int chunkCount,
+    int fileCount
 ) {}
