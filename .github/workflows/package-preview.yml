@@ -1,0 +1,105 @@
+name: Package Preview
+
+on:
+  push:
+    branches:
+      - dev2prod
+  pull_request:
+
+jobs:
+  package-preview:
+    name: Build Windows package preview
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build JAR
+        run: mvn -B clean package
+
+      - name: Stage preview artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path target/kantara.jar -Destination "dist/kantara-preview.jar"
+
+      - name: Create Windows icon
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+
+          $sourcePath = "src/main/resources/public/asset/kantara_icon.png"
+          $iconPath = "dist/kantara.ico"
+
+          $source = [System.Drawing.Image]::FromFile($sourcePath)
+          $bitmap = New-Object System.Drawing.Bitmap 256, 256
+          $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+          $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+          $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+          $graphics.Clear([System.Drawing.Color]::Transparent)
+          $graphics.DrawImage($source, 0, 0, 256, 256)
+
+          $pngStream = New-Object System.IO.MemoryStream
+          $bitmap.Save($pngStream, [System.Drawing.Imaging.ImageFormat]::Png)
+          $pngBytes = $pngStream.ToArray()
+
+          $iconStream = [System.IO.File]::Create($iconPath)
+          $writer = New-Object System.IO.BinaryWriter($iconStream)
+          $writer.Write([UInt16]0)
+          $writer.Write([UInt16]1)
+          $writer.Write([UInt16]1)
+          $writer.Write([Byte]0)
+          $writer.Write([Byte]0)
+          $writer.Write([Byte]0)
+          $writer.Write([Byte]0)
+          $writer.Write([UInt16]1)
+          $writer.Write([UInt16]32)
+          $writer.Write([UInt32]$pngBytes.Length)
+          $writer.Write([UInt32]22)
+          $writer.Write($pngBytes)
+
+          $writer.Dispose()
+          $iconStream.Dispose()
+          $pngStream.Dispose()
+          $graphics.Dispose()
+          $bitmap.Dispose()
+          $source.Dispose()
+
+      - name: Build Windows app image
+        shell: pwsh
+        run: |
+          jpackage `
+            --type app-image `
+            --name Kantara `
+            --app-version "0.0.${{ github.run_number }}" `
+            --input target `
+            --main-jar kantara.jar `
+            --main-class com.kantara.web.Main `
+            --icon dist/kantara.ico `
+            --dest dist/jpackage
+
+      - name: Package Windows app image
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path dist/jpackage/Kantara `
+            -DestinationPath "dist/kantara-windows-preview-${{ github.run_number }}.zip" `
+            -Force
+
+      - name: Upload preview package
+        uses: actions/upload-artifact@v4
+        with:
+          name: kantara-windows-preview-${{ github.run_number }}
+          path: |
+            dist/kantara-preview.jar
+            dist/kantara-windows-preview-${{ github.run_number }}.zip
+          if-no-files-found: error
