@@ -1,5 +1,8 @@
 name: Package Preview
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     branches:
@@ -25,11 +28,10 @@ jobs:
       - name: Build JAR
         run: mvn -B clean package
 
-      - name: Stage preview artifacts
+      - name: Prepare distribution directory
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item -Path target/kantara.jar -Destination "dist/kantara-preview.jar"
 
       - name: Create Windows icon
         shell: pwsh
@@ -87,19 +89,26 @@ jobs:
             --icon dist/kantara.ico `
             --dest dist/jpackage
 
-      - name: Package Windows app image
+      - name: Verify Windows app image
         shell: pwsh
         run: |
-          Compress-Archive `
-            -Path dist/jpackage/Kantara `
-            -DestinationPath "dist/kantara-windows-preview-${{ github.run_number }}.zip" `
-            -Force
+          $appPath = "dist/jpackage/Kantara"
+          $exePath = Join-Path $appPath "Kantara.exe"
+          $runtimePath = Join-Path $appPath "runtime/bin/java.exe"
 
-      - name: Upload preview package
+          if (!(Test-Path $exePath)) {
+            throw "Missing packaged executable: $exePath"
+          }
+
+          if (!(Test-Path $runtimePath)) {
+            throw "Missing bundled Java runtime: $runtimePath"
+          }
+
+          Get-ChildItem -Path $appPath -Force | Select-Object Name, Mode, Length
+
+      - name: Upload preview app image
         uses: actions/upload-artifact@v4
         with:
           name: kantara-windows-preview-${{ github.run_number }}
-          path: |
-            dist/kantara-preview.jar
-            dist/kantara-windows-preview-${{ github.run_number }}.zip
+          path: dist/jpackage/Kantara
           if-no-files-found: error

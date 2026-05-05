@@ -1,5 +1,8 @@
 name: Release
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   push:
     tags:
@@ -114,6 +117,23 @@ jobs:
             --main-class com.kantara.web.Main `
             --icon dist/kantara.ico `
             --dest dist/jpackage
+
+      - name: Verify Windows app image
+        shell: pwsh
+        run: |
+          $appPath = "dist/jpackage/Kantara"
+          $exePath = Join-Path $appPath "Kantara.exe"
+          $runtimePath = Join-Path $appPath "runtime/bin/java.exe"
+
+          if (!(Test-Path $exePath)) {
+            throw "Missing packaged executable: $exePath"
+          }
+
+          if (!(Test-Path $runtimePath)) {
+            throw "Missing bundled Java runtime: $runtimePath"
+          }
+
+          Get-ChildItem -Path $appPath -Force | Select-Object Name, Mode, Length
 
       - name: Package Windows app image
         shell: pwsh
