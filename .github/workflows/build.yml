@@ -1,0 +1,33 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build and test
+        run: mvn -B clean test package
+
+      - name: Upload development JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: kantara-dev-${{ github.sha }}
+          path: target/kantara.jar
+          if-no-files-found: error

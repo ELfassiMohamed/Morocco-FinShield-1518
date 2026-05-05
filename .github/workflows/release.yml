@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: "Release tag, for example v1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build Windows release
+    runs-on: windows-latest
+
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $tagName = "${{ inputs.tag_name }}"
+          } else {
+            $tagName = "${{ github.ref_name }}"
+          }
+
+          if ($tagName -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tag '$tagName' must match vMAJOR.MINOR.PATCH, for example v1.2.0."
+          }
+
+          $version = $tagName.Substring(1)
+          "tag_name=$tagName" >> $env:GITHUB_OUTPUT
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag_name }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build JAR
+        run: mvn -B clean package
+
+      - name: Stage release JAR
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Path target/kantara.jar -Destination "dist/kantara-${{ steps.release.outputs.version }}.jar"
+
+      - name: Build Windows app image
+        shell: pwsh
+        run: |
+          jpackage `
+            --type app-image `
+            --name Kantara `
+            --app-version "${{ steps.release.outputs.version }}" `
+            --input target `
+            --main-jar kantara.jar `
+            --main-class com.kantara.web.Main `
+            --dest dist/jpackage
+
+      - name: Package Windows app image
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path dist/jpackage/Kantara `
+            -DestinationPath "dist/kantara-windows-${{ steps.release.outputs.version }}.zip" `
+            -Force
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag_name }}
+          name: ${{ steps.release.outputs.tag_name }}
+          files: |
+            dist/kantara-${{ steps.release.outputs.version }}.jar
+            dist/kantara-windows-${{ steps.release.outputs.version }}.zip
