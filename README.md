@@ -21,6 +21,20 @@ Kantara is a fast, local-first document preprocessor designed to extract and opt
 - Java 21 or higher
 - Maven 3.8+
 
+## Downloads
+
+Release builds are published from Git tags named like `v1.0.0`.
+
+- `kantara-<version>.jar` requires Java 21 or higher.
+- `kantara-windows-<version>.zip` is a portable Windows app with a bundled Java runtime, so Java does not need to be installed separately.
+
+To create a new release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
 ## Building
 
 Build the single executable "fat JAR":
