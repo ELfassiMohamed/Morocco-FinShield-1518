@@ -116,6 +116,7 @@ jobs:
             --main-jar kantara.jar `
             --main-class com.kantara.web.Main `
             --icon dist/kantara.ico `
+            --runtime-image "$env:JAVA_HOME" `
             --dest dist/jpackage
 
       - name: Verify Windows app image
@@ -123,7 +124,8 @@ jobs:
         run: |
           $appPath = "dist/jpackage/Kantara"
           $exePath = Join-Path $appPath "Kantara.exe"
-          $runtimePath = Join-Path $appPath "runtime/bin/java.exe"
+          $runtimePath = Join-Path $appPath "runtime"
+          $jvmPath = Join-Path $appPath "runtime/bin/server/jvm.dll"
 
           if (!(Test-Path $exePath)) {
             throw "Missing packaged executable: $exePath"
@@ -131,6 +133,10 @@ jobs:
 
           if (!(Test-Path $runtimePath)) {
             throw "Missing bundled Java runtime: $runtimePath"
+          }
+
+          if (!(Test-Path $jvmPath)) {
+            throw "Missing bundled JVM library: $jvmPath"
           }
 
           Get-ChildItem -Path $appPath -Force | Select-Object Name, Mode, Length
