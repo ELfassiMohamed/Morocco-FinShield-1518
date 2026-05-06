@@ -225,6 +225,10 @@ body {
     background: var(--primary-hover);
 }
 
+.k-exit-btn {
+    padding: 7px 12px;
+}
+
 .k-code-area {
     padding: 0;
     font-family: 'DM Mono', monospace;
@@ -309,6 +313,27 @@ body {
     gap: 1rem;
     box-shadow: 0 10px 25px rgba(0,0,0,0.5);
     z-index: 1000;
+}
+
+.shutdown-state {
+    min-height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.shutdown-state h1 {
+    font-size: 24px;
+    color: var(--text-primary);
+}
+
+.shutdown-state p {
+    font-size: 14px;
+    color: var(--text-muted);
 }
 
 #close-error {

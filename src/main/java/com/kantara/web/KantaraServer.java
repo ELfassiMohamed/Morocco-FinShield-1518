@@ -7,6 +7,7 @@ import io.javalin.http.staticfiles.Location;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class KantaraServer {
     private final ProcessingService processingService;
@@ -16,7 +17,9 @@ public class KantaraServer {
     }
 
     public Javalin create() {
-        return Javalin.create(config -> {
+        AtomicReference<Javalin> appRef = new AtomicReference<>();
+
+        Javalin app = Javalin.create(config -> {
             // Virtual threads for concurrency
             config.concurrency.useVirtualThreads = true;
 
@@ -49,6 +52,25 @@ public class KantaraServer {
                 ctx.json(Map.of("status", "ok", "version", "1.0.0"));
             });
 
+            config.routes.post("/api/shutdown", ctx -> {
+                ctx.status(202).json(Map.of("status", "shutting_down"));
+                Thread shutdownThread = new Thread(() -> {
+                    try {
+                        Thread.sleep(250);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+
+                    Javalin appToStop = appRef.get();
+                    if (appToStop != null) {
+                        appToStop.stop();
+                    }
+                    System.exit(0);
+                }, "kantara-shutdown");
+                shutdownThread.setDaemon(false);
+                shutdownThread.start();
+            });
+
             // Exception mapping
             config.routes.exception(KantaraException.class, (e, ctx) -> {
                 ctx.status(400).json(Map.of("error", e.getMessage()));
@@ -58,5 +80,8 @@ public class KantaraServer {
                 ctx.status(500).json(Map.of("error", "An unexpected error occurred: " + e.getMessage()));
             });
         });
+
+        appRef.set(app);
+        return app;
     }
 }
