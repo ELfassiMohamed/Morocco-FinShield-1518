@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnClear = document.getElementById('btn-clear');
     const btnCopy = document.getElementById('btn-copy');
     const btnDownload = document.getElementById('btn-download');
+    const btnExit = document.getElementById('btn-exit');
     const viewBtns = document.querySelectorAll('.k-view-btn');
 
     let currentResult = null;
@@ -273,5 +274,17 @@ document.addEventListener('DOMContentLoaded', () => {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    });
+
+    btnExit.addEventListener('click', () => {
+        fetch('/api/shutdown', { method: 'POST' })
+            .finally(() => {
+                document.body.innerHTML = `
+                    <div class="shutdown-state">
+                        <h1>Kantara stopped</h1>
+                        <p>You can close this browser tab.</p>
+                    </div>
+                `;
+            });
     });
 });
