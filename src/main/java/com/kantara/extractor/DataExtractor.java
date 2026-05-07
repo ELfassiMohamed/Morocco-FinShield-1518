@@ -5,12 +5,6 @@ import com.kantara.exception.ValidationException;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
-import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.FormulaEvaluator;
-import org.apache.poi.ss.usermodel.Row;
-import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.ss.usermodel.WorkbookFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
@@ -27,12 +21,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Extracts structured table data from XLSX and CSV files.
+ * Extracts structured table data from CSV files.
  */
 public class DataExtractor {
-
-    private final org.apache.poi.ss.usermodel.DataFormatter cellFormatter =
-            new org.apache.poi.ss.usermodel.DataFormatter();
 
     public List<Map<String, String>> extract(String filePath) {
         if (filePath == null || filePath.isEmpty()) {
@@ -73,123 +64,11 @@ public class DataExtractor {
             throw new ValidationException("Stream and file name cannot be null or empty");
         }
 
-        String lowerPath = fileName.toLowerCase();
-        if (lowerPath.endsWith(".xlsx")) {
-            return extractExcel(inputStream, fileName);
-        } else if (lowerPath.endsWith(".csv")) {
-            return extractCsv(inputStream, fileName);
-        }
-        throw new ExtractionException("Unsupported file format: " + fileName);
-    }
-
-    private Map<String, Object> extractExcel(InputStream inputStream, String fileName) {
-        List<Map<String, Object>> tables = new ArrayList<>();
-
-        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
-            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
-
-            for (int sheetIndex = 0; sheetIndex < workbook.getNumberOfSheets(); sheetIndex++) {
-                Sheet sheet = workbook.getSheetAt(sheetIndex);
-                if (sheet == null || sheet.getPhysicalNumberOfRows() == 0) {
-                    continue;
-                }
-
-                Map<String, Object> table = extractSheet(sheet, sheetIndex, evaluator);
-                if (!castRows(table.get("data")).isEmpty()) {
-                    tables.add(table);
-                }
-            }
-        } catch (IOException e) {
-            throw new ExtractionException("Error reading Excel file: " + fileName, e);
+        if (!fileName.toLowerCase().endsWith(".csv")) {
+            throw new ExtractionException("Unsupported file format: " + fileName);
         }
 
-        return documentMap(fileName, "xlsx", tables, Map.of("sheet_count", tables.size()));
-    }
-
-    private Map<String, Object> extractSheet(Sheet sheet, int sheetIndex, FormulaEvaluator evaluator) {
-        Row headerRow = firstNonEmptyRow(sheet);
-        List<String> headers = headersFromRow(headerRow, evaluator);
-        List<Map<String, Object>> rows = new ArrayList<>();
-
-        if (headerRow != null) {
-            for (int rowIndex = headerRow.getRowNum() + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-                Row row = sheet.getRow(rowIndex);
-                if (row == null) {
-                    continue;
-                }
-
-                Map<String, Object> rowData = rowMap(rowIndex + 1, headers, row, evaluator);
-                if (Boolean.TRUE.equals(rowData.get("has_data"))) {
-                    rowData.remove("has_data");
-                    rows.add(rowData);
-                }
-            }
-        }
-
-        Map<String, Object> table = new LinkedHashMap<>();
-        table.put("name", sheet.getSheetName());
-        table.put("sheet_index", sheetIndex);
-        table.put("header_row", headerRow == null ? null : headerRow.getRowNum() + 1);
-        table.put("row_count", rows.size());
-        table.put("column_count", headers.size());
-        table.put("headers", headers);
-        table.put("data", rows);
-        return table;
-    }
-
-    private Row firstNonEmptyRow(Sheet sheet) {
-        for (int rowIndex = sheet.getFirstRowNum(); rowIndex <= sheet.getLastRowNum(); rowIndex++) {
-            Row row = sheet.getRow(rowIndex);
-            if (row == null) {
-                continue;
-            }
-            for (int colIndex = 0; colIndex < row.getLastCellNum(); colIndex++) {
-                Cell cell = row.getCell(colIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-                if (cell != null && !cellFormatter.formatCellValue(cell).trim().isEmpty()) {
-                    return row;
-                }
-            }
-        }
-        return null;
-    }
-
-    private List<String> headersFromRow(Row headerRow, FormulaEvaluator evaluator) {
-        List<String> headers = new ArrayList<>();
-        if (headerRow == null) {
-            return headers;
-        }
-
-        for (int colIndex = 0; colIndex < headerRow.getLastCellNum(); colIndex++) {
-            Cell cell = headerRow.getCell(colIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-            String header = cellFormatter.formatCellValue(cell, evaluator).trim();
-            headers.add(header.isEmpty() ? "Column" + (colIndex + 1) : uniqueHeader(headers, header));
-        }
-        return headers;
-    }
-
-    private Map<String, Object> rowMap(
-            int rowNumber,
-            List<String> headers,
-            Row row,
-            FormulaEvaluator evaluator
-    ) {
-        Map<String, Object> rowData = new LinkedHashMap<>();
-        Map<String, String> values = new LinkedHashMap<>();
-        boolean hasData = false;
-
-        for (int colIndex = 0; colIndex < headers.size(); colIndex++) {
-            Cell cell = row.getCell(colIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
-            String cellValue = cellFormatter.formatCellValue(cell, evaluator).trim();
-            if (!cellValue.isEmpty()) {
-                hasData = true;
-            }
-            values.put(headers.get(colIndex), cellValue);
-        }
-
-        rowData.put("row_number", rowNumber);
-        rowData.put("values", values);
-        rowData.put("has_data", hasData);
-        return rowData;
+        return extractCsv(inputStream, fileName);
     }
 
     private Map<String, Object> extractCsv(InputStream inputStream, String fileName) {
@@ -296,18 +175,6 @@ public class DataExtractor {
         result.put("metadata", metadata);
         result.put("tables", tables);
         return result;
-    }
-
-    private String uniqueHeader(List<String> existing, String header) {
-        if (!existing.contains(header)) {
-            return header;
-        }
-
-        int suffix = 2;
-        while (existing.contains(header + "_" + suffix)) {
-            suffix++;
-        }
-        return header + "_" + suffix;
     }
 
     @SuppressWarnings("unchecked")

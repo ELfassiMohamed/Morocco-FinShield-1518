@@ -2,6 +2,7 @@ package com.kantara.processing;
 
 import com.kantara.exception.ExtractionException;
 import com.kantara.extractor.DataExtractor;
+import com.kantara.extractor.OfficeDocumentExtractor;
 import com.kantara.extractor.PdfExtractor;
 import com.kantara.formatter.JsonFormatter;
 import com.kantara.formatter.MarkdownFormatter;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class ProcessingService {
 
     private final DataExtractor dataExtractor;
+    private final OfficeDocumentExtractor officeDocumentExtractor;
     private final PdfExtractor pdfExtractor;
     private final TokenOptimizer tokenOptimizer;
     private final DocumentChunker documentChunker;
@@ -25,6 +27,7 @@ public class ProcessingService {
 
     public ProcessingService() {
         this.dataExtractor = new DataExtractor();
+        this.officeDocumentExtractor = new OfficeDocumentExtractor();
         this.pdfExtractor = new PdfExtractor();
         this.tokenOptimizer = new TokenOptimizer();
         this.documentChunker = new DocumentChunker();
@@ -99,8 +102,11 @@ public class ProcessingService {
         if (lowerName.endsWith(".pdf")) {
             sourceType = "pdf";
             extracted = pdfExtractor.extract(sourceDocument.stream(), fileName);
-        } else if (lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv")) {
-            sourceType = lowerName.endsWith(".xlsx") ? "xlsx" : "csv";
+        } else if (lowerName.endsWith(".docx") || lowerName.endsWith(".pptx")) {
+            sourceType = lowerName.endsWith(".docx") ? "docx" : "pptx";
+            extracted = officeDocumentExtractor.extractDocument(sourceDocument.stream(), fileName);
+        } else if (lowerName.endsWith(".csv")) {
+            sourceType = "csv";
             extracted = dataExtractor.extractDocument(sourceDocument.stream(), fileName);
         } else {
             throw new ExtractionException("Unsupported file type: " + fileName);

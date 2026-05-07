@@ -70,7 +70,8 @@ public class PdfExtractor {
                 stripper.setStartPage(pageNumber);
                 stripper.setEndPage(pageNumber);
 
-                String pageText = cleanText(stripper.getText(document));
+                String rawPageText = normalizeLineBreaks(stripper.getText(document));
+                String pageText = cleanText(rawPageText);
                 if (!pageText.isBlank()) {
                     if (rawText.length() > 0) {
                         rawText.append("\n\n");
@@ -85,7 +86,7 @@ public class PdfExtractor {
                 pages.add(page);
 
                 sections.addAll(extractSectionsForPage(pageText, pageNumber));
-                tables.addAll(extractTableLikeBlocks(pageText, pageNumber));
+                tables.addAll(extractTableLikeBlocks(rawPageText, pageNumber));
             }
 
             Map<String, Object> result = new LinkedHashMap<>();
@@ -186,11 +187,23 @@ public class PdfExtractor {
     }
 
     private Map<String, Object> tableMap(int pageNumber, List<List<String>> rows) {
+        List<List<String>> normalizedRows = normalizeRows(rows);
+        int columnCount = normalizedRows.stream().mapToInt(List::size).max().orElse(0);
+        List<String> headers = columnCount == 0 || normalizedRows.isEmpty()
+                ? List.of()
+                : headersFromRow(normalizedRows.get(0), columnCount);
+        List<Map<String, Object>> dataRows = structuredRows(normalizedRows, headers);
+
         Map<String, Object> table = new LinkedHashMap<>();
         table.put("name", "PDF table candidate p" + pageNumber);
         table.put("page", pageNumber);
-        table.put("confidence", rows.size() >= 4 ? "medium" : "low");
-        table.put("rows", rows);
+        table.put("confidence", dataRows.size() >= 3 && columnCount >= 3 ? "medium" : "low");
+        table.put("header_row", headers.isEmpty() ? null : 1);
+        table.put("row_count", dataRows.size());
+        table.put("column_count", headers.size());
+        table.put("headers", headers);
+        table.put("data", dataRows);
+        table.put("rows", normalizedRows);
         return table;
     }
 
@@ -211,6 +224,57 @@ public class PdfExtractor {
             }
         }
         return cells;
+    }
+
+    private List<List<String>> normalizeRows(List<List<String>> rows) {
+        List<List<String>> normalizedRows = new ArrayList<>();
+        for (List<String> row : rows) {
+            List<String> normalizedRow = row.stream()
+                    .map(this::cleanText)
+                    .toList();
+            if (normalizedRow.stream().anyMatch(cell -> !cell.isBlank())) {
+                normalizedRows.add(normalizedRow);
+            }
+        }
+        return normalizedRows;
+    }
+
+    private List<Map<String, Object>> structuredRows(List<List<String>> rows, List<String> headers) {
+        List<Map<String, Object>> structuredRows = new ArrayList<>();
+        if (rows.size() <= 1 || headers.isEmpty()) {
+            return structuredRows;
+        }
+
+        for (int rowIndex = 1; rowIndex < rows.size(); rowIndex++) {
+            List<String> row = rows.get(rowIndex);
+            Map<String, String> values = new LinkedHashMap<>();
+            boolean hasData = false;
+            for (int columnIndex = 0; columnIndex < headers.size(); columnIndex++) {
+                String value = columnIndex < row.size() ? row.get(columnIndex) : "";
+                if (!value.isBlank()) {
+                    hasData = true;
+                }
+                values.put(headers.get(columnIndex), value);
+            }
+
+            if (hasData) {
+                Map<String, Object> rowData = new LinkedHashMap<>();
+                rowData.put("row_number", rowIndex + 1);
+                rowData.put("values", values);
+                structuredRows.add(rowData);
+            }
+        }
+
+        return structuredRows;
+    }
+
+    private List<String> headersFromRow(List<String> row, int columnCount) {
+        List<String> headers = new ArrayList<>();
+        for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+            String header = columnIndex < row.size() ? row.get(columnIndex).trim() : "";
+            headers.add(uniqueHeader(headers, header.isBlank() ? "Column" + (columnIndex + 1) : header));
+        }
+        return headers;
     }
 
     private Map<String, Object> pdfMetadata(PDDocument document, String fileName) {
@@ -244,7 +308,7 @@ public class PdfExtractor {
             return "";
         }
 
-        String normalizedLineBreaks = text.replace("\r\n", "\n").replace('\r', '\n');
+        String normalizedLineBreaks = normalizeLineBreaks(text);
         String[] lines = normalizedLineBreaks.split("\n");
         StringBuilder cleaned = new StringBuilder(normalizedLineBreaks.length());
 
@@ -261,6 +325,22 @@ public class PdfExtractor {
         }
 
         return cleaned.toString();
+    }
+
+    private String normalizeLineBreaks(String text) {
+        return text == null ? "" : text.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    private String uniqueHeader(List<String> existing, String header) {
+        if (!existing.contains(header)) {
+            return header;
+        }
+
+        int suffix = 2;
+        while (existing.contains(header + "_" + suffix)) {
+            suffix++;
+        }
+        return header + "_" + suffix;
     }
 
     private int headingConfidence(String line) {

@@ -71,11 +71,14 @@ public class MarkdownFormatter implements OutputFormatter {
             String title = asString(section.get("title"));
             String text = asString(section.get("text"));
             String pageStart = asString(section.get("page_start"));
+            String slideNumber = asString(section.get("slide_number"));
 
             if (!title.isBlank()) {
                 sb.append("#### ").append(escapeMarkdown(title)).append("\n\n");
             }
-            if (!pageStart.isBlank()) {
+            if (!slideNumber.isBlank()) {
+                sb.append("_Slide ").append(slideNumber).append("_\n\n");
+            } else if (!pageStart.isBlank()) {
                 sb.append("_Page ").append(pageStart).append("_\n\n");
             }
             if (!text.isBlank()) {

@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            if (!/\.(pdf|xlsx|csv)$/i.test(file.name)) {
+            if (!/\.(pdf|docx|pptx|csv)$/i.test(file.name)) {
                 showError(`${file.name} is not a supported file type.`);
                 return;
             }
