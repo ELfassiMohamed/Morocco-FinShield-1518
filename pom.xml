@@ -7,7 +7,7 @@
     <artifactId>kantara</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>Kantara Project</name>
-    <description>A local-first document preprocessor for LLM-ready JSON and Markdown.</description>
+    <description>A local-first document preprocessor for LLM-ready JSON, Markdown, and HTML.</description>
 
     <properties>
         <maven.compiler.release>21</maven.compiler.release>

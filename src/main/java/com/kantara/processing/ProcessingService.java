@@ -4,6 +4,7 @@ import com.kantara.exception.ExtractionException;
 import com.kantara.extractor.DataExtractor;
 import com.kantara.extractor.OfficeDocumentExtractor;
 import com.kantara.extractor.PdfExtractor;
+import com.kantara.formatter.HtmlFormatter;
 import com.kantara.formatter.JsonFormatter;
 import com.kantara.formatter.MarkdownFormatter;
 import com.kantara.formatter.OutputFormatter;
@@ -35,8 +36,10 @@ public class ProcessingService {
         this.formatters = new HashMap<>();
         OutputFormatter json = new JsonFormatter();
         OutputFormatter md = new MarkdownFormatter();
+        OutputFormatter html = new HtmlFormatter();
         this.formatters.put(json.formatName(), json);
         this.formatters.put(md.formatName(), md);
+        this.formatters.put(html.formatName(), html);
     }
 
     public ProcessingResult process(InputStream fileStream, String fileName, String format, String verbosity) {

@@ -57,6 +57,24 @@ class ProcessingServiceTest {
     }
 
     @Test
+    void processesCsvFilesAsHtml() {
+        byte[] csv = "Name,Value\nAlpha,<script>alert('x')</script>\n".getBytes(StandardCharsets.UTF_8);
+
+        ProcessingResult result = processingService.process(
+                new ByteArrayInputStream(csv),
+                "sample.csv",
+                "html",
+                "standard"
+        );
+
+        assertEquals("html", result.format());
+        assertTrue(result.output().contains("<h1>Kantara Output</h1>"));
+        assertTrue(result.output().contains("<table>"));
+        assertTrue(result.output().contains("&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;"));
+        assertFalse(result.output().contains("<script>"));
+    }
+
+    @Test
     void extractsDocxParagraphsAndTables() throws Exception {
         ProcessingResult result = processingService.process(
                 new ByteArrayInputStream(docxBytes()),

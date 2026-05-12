@@ -175,13 +175,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Update code block
-        outputCode.className = data.format === 'json' ? 'language-json' : 'language-markdown';
+        const languageClass = {
+            json: 'language-json',
+            markdown: 'language-markdown',
+            html: 'language-html'
+        }[data.format] || 'language-plaintext';
+        outputCode.className = languageClass;
         outputCode.textContent = data.output;
         
-        // Handle markdown rendering
+        // Handle rendered previews
         if (data.format === 'markdown') {
             viewToggle.classList.remove('hidden');
             outputRendered.innerHTML = marked.parse(data.output);
+            switchView('rendered');
+        } else if (data.format === 'html') {
+            viewToggle.classList.remove('hidden');
+            outputRendered.innerHTML = data.output;
             switchView('rendered');
         } else {
             viewToggle.classList.add('hidden');
@@ -259,13 +268,20 @@ document.addEventListener('DOMContentLoaded', () => {
     btnDownload.addEventListener('click', () => {
         if (!currentResult) return;
         
-        const ext = currentResult.format === 'json' ? '.json' : '.md';
+        const ext = {
+            json: '.json',
+            markdown: '.md',
+            html: '.html'
+        }[currentResult.format] || '.txt';
         const baseName = currentResult.fileCount && currentResult.fileCount > 1
             ? "kantara_batch"
             : currentResult.sourceFileName.replace(/\.[^/.]+$/, "");
         const filename = baseName + "_processed" + ext;
         
-        const blob = new Blob([currentResult.output], { type: 'text/plain;charset=utf-8' });
+        const mimeType = currentResult.format === 'html'
+            ? 'text/html;charset=utf-8'
+            : 'text/plain;charset=utf-8';
+        const blob = new Blob([currentResult.output], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
