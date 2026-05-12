@@ -43,7 +43,8 @@ public class KantaraServer {
                 ctx.json(Map.of(
                     "formats", List.of(
                         Map.of("id", "json", "name", "JSON", "description", "Structured JSON"),
-                        Map.of("id", "markdown", "name", "Markdown", "description", "Clean Markdown")
+                        Map.of("id", "markdown", "name", "Markdown", "description", "Clean Markdown"),
+                        Map.of("id", "html", "name", "HTML", "description", "Renderable HTML")
                     )
                 ));
             });
