@@ -1,0 +1,11 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "mvn -B clean package -DskipTests"
+  },
+  "deploy": {
+    "startCommand": "java -jar target/kantara.jar",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 120
+  }
+}

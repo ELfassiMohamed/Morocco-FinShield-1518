@@ -5,6 +5,7 @@ import com.kantara.processing.ProcessingService;
 import io.javalin.Javalin;
 import io.javalin.http.staticfiles.Location;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,6 +19,7 @@ public class KantaraServer {
 
     public Javalin create() {
         AtomicReference<Javalin> appRef = new AtomicReference<>();
+        boolean shutdownSupported = isShutdownRouteAllowed();
 
         Javalin app = Javalin.create(config -> {
             // Virtual threads for concurrency
@@ -50,27 +52,33 @@ public class KantaraServer {
             });
             
             config.routes.get("/api/health", ctx -> {
-                ctx.json(Map.of("status", "ok", "version", "1.0.0"));
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("status", "ok");
+                body.put("version", "1.0.0");
+                body.put("shutdown_supported", shutdownSupported);
+                ctx.json(body);
             });
 
-            config.routes.post("/api/shutdown", ctx -> {
-                ctx.status(202).json(Map.of("status", "shutting_down"));
-                Thread shutdownThread = new Thread(() -> {
-                    try {
-                        Thread.sleep(250);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                    }
+            if (shutdownSupported) {
+                config.routes.post("/api/shutdown", ctx -> {
+                    ctx.status(202).json(Map.of("status", "shutting_down"));
+                    Thread shutdownThread = new Thread(() -> {
+                        try {
+                            Thread.sleep(250);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
 
-                    Javalin appToStop = appRef.get();
-                    if (appToStop != null) {
-                        appToStop.stop();
-                    }
-                    System.exit(0);
-                }, "kantara-shutdown");
-                shutdownThread.setDaemon(false);
-                shutdownThread.start();
-            });
+                        Javalin appToStop = appRef.get();
+                        if (appToStop != null) {
+                            appToStop.stop();
+                        }
+                        System.exit(0);
+                    }, "kantara-shutdown");
+                    shutdownThread.setDaemon(false);
+                    shutdownThread.start();
+                });
+            }
 
             // Exception mapping
             config.routes.exception(KantaraException.class, (e, ctx) -> {
@@ -84,5 +92,14 @@ public class KantaraServer {
 
         appRef.set(app);
         return app;
+    }
+
+    /**
+     * Railway sets {@code RAILWAY_ENVIRONMENT} (e.g. {@code production}, {@code preview}).
+     * Do not expose unauthenticated shutdown on those deployments.
+     */
+    private static boolean isShutdownRouteAllowed() {
+        String railway = System.getenv("RAILWAY_ENVIRONMENT");
+        return railway == null || railway.isBlank();
     }
 }

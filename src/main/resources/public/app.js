@@ -29,6 +29,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnExit = document.getElementById('btn-exit');
     const viewBtns = document.querySelectorAll('.k-view-btn');
 
+    fetch('/api/health')
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error('health'))))
+        .then((data) => {
+            if (data && data.shutdown_supported === false) {
+                btnExit.style.display = 'none';
+            }
+        })
+        .catch(() => {});
+
     let currentResult = null;
     let lastUploadedFiles = [];
 
